@@ -56,9 +56,9 @@ Office.onReady((info) => {
     versionDiv.style.color = "#888";
     versionDiv.style.textAlign = "center";
     versionDiv.style.marginTop = "5px";
-    versionDiv.innerText = "v4.0 - Gemini 2.0 Flash";
+    versionDiv.innerText = "v5.0 - Gemini Flash Latest";
     document.querySelector(".app-container").appendChild(versionDiv);
-    console.log("Gemini Add-in v4 loaded");
+    console.log("Gemini Add-in v5 loaded");
 });
 
 function updateNetworkStatus() {
@@ -144,8 +144,8 @@ async function callGeminiAPI(prompt) {
         throw new Error("No Internet connection.");
     }
 
-    // Use v1beta and gemini-2.0-flash
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    // Use v1beta and gemini-flash-latest (Aliases to best available flash model)
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
     
     const systemContext = `You are a helpful assistant living inside Microsoft ${Office.context.host || 'Office'}. 
     Keep answers concise and relevant to document creation. 
