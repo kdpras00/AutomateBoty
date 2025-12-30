@@ -4,7 +4,7 @@
  */
 
 // Core Configuration
-const DEFAULT_API_KEY = "AIzaSyCmSlRCCPgC1ph4vuco9hwLsTaDtnBPcSA"; // User provided
+const DEFAULT_API_KEY = "AIzaSyAmsulrYYqrxuWnlqwrn1UzHsPdTSedyR0"; // User provided
 let apiKey = localStorage.getItem("gemini_api_key") || DEFAULT_API_KEY;
 
 // DOM Elements
