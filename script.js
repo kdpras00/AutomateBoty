@@ -24,10 +24,21 @@ Office.onReady((info) => {
     setupEventListeners();
     
     // Check for saved API key
-    if (localStorage.getItem("gemini_api_key")) {
-        apiKeyInput.value = localStorage.getItem("gemini_api_key");
+    // Check for saved API key
+    const currentSavedKey = localStorage.getItem("gemini_api_key");
+    const OLD_INVALID_KEY = "AIzaSyCmSlRCCPgC1ph4vuco9hwLsTaDtnBPcSA";
+
+    if (currentSavedKey && currentSavedKey !== OLD_INVALID_KEY) {
+        apiKeyInput.value = currentSavedKey;
+        apiKey = currentSavedKey;
     } else {
+        // If no key, or we found the OLD invalid key, reset to new default
+        if (currentSavedKey === OLD_INVALID_KEY) {
+            console.log("Removing old invalid API key from storage");
+            localStorage.removeItem("gemini_api_key");
+        }
         apiKeyInput.value = DEFAULT_API_KEY;
+        apiKey = DEFAULT_API_KEY;
     }
 
     // Network Status Check
@@ -119,7 +130,7 @@ async function callGeminiAPI(prompt) {
         throw new Error("No Internet connection.");
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
     
     const systemContext = `You are a helpful assistant living inside Microsoft ${Office.context.host || 'Office'}. 
     Keep answers concise and relevant to document creation. 
