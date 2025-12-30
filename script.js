@@ -18,16 +18,22 @@ const saveSettingsBtn = document.getElementById("save-settings");
 
 // Initialize Office.js
 Office.onReady((info) => {
-    if (info.host) {
-        console.log("Office.js is ready. Host:", info.host);
-        setupEventListeners();
-        apiKeyInput.value = apiKey; // Pre-fill settings
-        
-        // Network Status Check
-        updateNetworkStatus();
-        window.addEventListener('online', updateNetworkStatus);
-        window.addEventListener('offline', updateNetworkStatus);
+    console.log("Office.js ready. Host:", info.host);
+    
+    // Always setup listeners so it works in Browser too for testing
+    setupEventListeners();
+    
+    // Check for saved API key
+    if (localStorage.getItem("gemini_api_key")) {
+        apiKeyInput.value = localStorage.getItem("gemini_api_key");
+    } else {
+        apiKeyInput.value = DEFAULT_API_KEY;
     }
+
+    // Network Status Check
+    updateNetworkStatus();
+    window.addEventListener('online', updateNetworkStatus);
+    window.addEventListener('offline', updateNetworkStatus);
 });
 
 function updateNetworkStatus() {
@@ -86,24 +92,35 @@ async function handleSendMessage() {
     // 2. Call Gemini API
     try {
         const loadingId = addLoadingMessage();
+        console.log("Calling Gemini API...");
         const responseText = await callGeminiAPI(text);
         
         // 3. Remove Loading & Display Bot Response
         removeMessage(loadingId);
         addBotMessage(responseText, true); // true = enable actions
     } catch (error) {
-        console.error("Error:", error);
-        removeMessage("loading-msg"); // Ensure loading is removed if ID matching fails
-        addBotMessage("Sorry, I encountered an error communicating with Gemini. Please check your API key or connection.");
+        console.error("Full Error Object:", error);
+        removeMessage("loading-msg"); // Ensure loading is removed
+        // Show the actual error message to the user for debugging
+        addBotMessage(`❌ **Error**: ${error.message}\n\nPlease check your internet connection or API Key.`);
     } finally {
         sendBtn.disabled = false;
+        userInput.focus();
     }
 }
 
 async function callGeminiAPI(prompt) {
+    if (!apiKey) {
+        throw new Error("API Key is missing. Please check settings.");
+    }
+    
+    // Check if we are online before fetching
+    if (!navigator.onLine) {
+        throw new Error("No Internet connection.");
+    }
+
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
     
-    // Add context about the Office App
     const systemContext = `You are a helpful assistant living inside Microsoft ${Office.context.host || 'Office'}. 
     Keep answers concise and relevant to document creation. 
     If the user asks to generate text, table, or content, provide it clearly.
@@ -116,17 +133,28 @@ async function callGeminiAPI(prompt) {
         }]
     };
 
+    console.log("Sending fetch request to Gemini...");
     const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
     });
 
+    console.log("Response status:", response.status);
+
     if (!response.ok) {
-        throw new Error(`API Error: ${response.statusText}`);
+        const errText = await response.text();
+        console.error("API Error Response:", errText);
+        throw new Error(`API Error (${response.status}): ${response.statusText}`);
     }
 
     const data = await response.json();
+    console.log("API Data received:", data);
+    
+    if (!data.candidates || data.candidates.length === 0) {
+        return "I received an empty response from Gemini.";
+    }
+
     return data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
 }
 
