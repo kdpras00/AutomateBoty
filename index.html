@@ -39,7 +39,13 @@
         </div>
 
         <div class="input-area">
-            <textarea id="user-input" placeholder="Ask AutomateBoty to write, calculate, or design..." rows="1"></textarea>
+            <input type="file" id="file-upload" style="display: none;" accept="image/*,.txt,.csv,.md,.json,.js,.py">
+            <button id="upload-btn" title="Upload File/Image" style="margin-right: 5px; background: none; border: none; cursor: pointer; color: var(--text-secondary);">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M21.44 11.05L12.25 20.24C11.1242 21.3658 9.59718 21.9983 8.00501 21.9983C6.41283 21.9983 4.88582 21.3658 3.76001 20.24C2.63419 19.1142 2.00171 17.5872 2.00171 15.995C2.00171 14.4028 2.63419 12.8758 3.76001 11.75L12.95 2.56001C13.7005 1.80947 14.7184 1.38782 15.7798 1.38782C16.8412 1.38782 17.859 1.80947 18.61 2.56001C19.3605 3.31055 19.7822 4.32837 19.7822 5.39001C19.7822 6.45165 19.3605 7.46947 18.61 8.22001L9.42001 17.41C9.04473 17.7853 8.53582 17.9961 8.00501 17.9961C7.47419 17.9961 6.96528 17.7853 6.59001 17.41C6.21473 17.0347 6.00391 16.5258 6.00391 15.995C6.00391 15.4642 6.21473 14.9553 6.59001 14.58L15.07 6.10001" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+            <textarea id="user-input" placeholder="Ask AutomateBoty..." rows="1"></textarea>
             <button id="send-btn">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>

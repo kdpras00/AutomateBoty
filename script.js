@@ -106,6 +106,46 @@ function setupEventListeners() {
             addBotMessage("API Key updated successfully.");
         }
     });
+
+    // File Upload Handlers (New)
+    const uploadBtn = document.getElementById("upload-btn");
+    const fileInput = document.getElementById("file-upload");
+
+    if (uploadBtn && fileInput) {
+        uploadBtn.addEventListener("click", () => fileInput.click());
+        
+        fileInput.addEventListener("change", (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                 // Show pill or indicator
+                 let previewText = `📎 ${file.name} selected`;
+                 // Just append to input as a visual cue? 
+                 // Or better, store it in a global variable
+                 window.currentFile = file;
+                 
+                 // Add visual indicator near input
+                 const existingIndicator = document.getElementById("file-indicator");
+                 if(existingIndicator) existingIndicator.remove();
+                 
+                 const indicator = document.createElement("div");
+                 indicator.id = "file-indicator";
+                 indicator.style.fontSize = "11px";
+                 indicator.style.padding = "4px 8px";
+                 indicator.style.backgroundColor = "#e0e7ff";
+                 indicator.style.color = "#333";
+                 indicator.style.borderRadius = "12px";
+                 indicator.style.marginBottom = "5px";
+                 indicator.style.display = "inline-block";
+                 indicator.innerText = previewText;
+                 
+                 const inputArea = document.querySelector(".input-area");
+                 inputArea.insertBefore(indicator, userInput);
+                 
+                 // If it's an image, read strictly for base64 now
+                 // Implementation in handleSendMessage will read it.
+            }
+        });
+    }
 }
 
 async function handleSendMessage(autoSend = false) {
@@ -142,6 +182,12 @@ async function handleSendMessage(autoSend = false) {
         // Show the actual error message to the user for debugging
         addBotMessage(`❌ **Error**: ${error.message}\n\nPlease check your internet connection or API Key.`);
     } finally {
+        // Clear file upload state
+        window.currentFile = null;
+        const indicator = document.getElementById("file-indicator");
+        if(indicator) indicator.remove();
+        if(document.getElementById("file-upload")) document.getElementById("file-upload").value = "";
+        
         sendBtn.disabled = false;
         userInput.focus();
     }
@@ -179,15 +225,60 @@ async function callGeminiAPI(prompt) {
     } catch (e) {
         console.log("Could not read document context:", e);
     }
+    
+    // 0b. Process User Uploaded File (if any)
+    let filePart = null;
+    let fileTextContent = "";
+    
+    if (window.currentFile) {
+        const file = window.currentFile;
+        console.log("Processing uploaded file:", file.name, file.type);
+        
+        if (file.type.startsWith("image/")) {
+            // Convert to Base64 for Inline Data
+            const base64Data = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    // result is data:image/jpeg;base64,....
+                    const content = reader.result.toString().split(',')[1];
+                    resolve(content);
+                };
+                reader.readAsDataURL(file);
+            });
+            
+            filePart = {
+                inlineData: {
+                    mimeType: file.type,
+                    data: base64Data
+                }
+            };
+        } else {
+            // Assume text-based (txt, csv, md, json, js, etc)
+            fileTextContent = await new Promise((resolve) => {
+                 const reader = new FileReader();
+                 reader.onload = (e) => resolve(e.target.result);
+                 reader.readAsText(file);
+            });
+            fileTextContent = `\n\n[Attached File: ${file.name}]\n${fileTextContent}\n[End Attached File]\n`;
+        }
+        
+        // Clear file after processing? or keep until sent?
+        // Let's clear visual indicator and var after successful send (in handleSendMessage), 
+        // but for now we just prepare the payload.
+    }
+
+    // Construct Parts
+    const textPart = { text: systemRole + "\n\nDocument Context:\n" + docContext + fileTextContent + "\n\nUser Request: " + prompt };
+    const partsVal = filePart ? [textPart, filePart] : [textPart];
 
     const payload = {
         contents: [{
             role: "user",
-            parts: [{ text: systemRole + "\n\nDocument Context:\n" + docContext + "\n\nUser Request: " + prompt }]
+            parts: partsVal
         }]
     };
 
-    console.log("Sending fetch request to Gemini...");
+    console.log("Sending fetch request to Gemini with payload parts:", partsVal.length);
     const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -204,6 +295,8 @@ async function callGeminiAPI(prompt) {
 
     const data = await response.json();
     console.log("API Data received:", data);
+    
+    // Clear file selection after successful call setup (actually better to clear in handleSendMessage)
     
     if (!data.candidates || data.candidates.length === 0) {
         return "I received an empty response from Gemini.";
@@ -335,25 +428,27 @@ function setupQuickActions(host) {
 
     if (host === Office.HostType.Word) {
         actions = [
-            { label: "Draft Thesis", prompt: "Write a detailed outline for a Thesis (Skripsi) on {topic}. Structure it with Chapters 1-5." },
-            { label: "Create Journal", prompt: "Write an academic journal abstract and introduction about {topic}." },
-            { label: "Translate to English", prompt: "Translate the selected text to academic English." },
-            { label: "Rewrite Professional", prompt: "Rewrite this text to be more professional, concise, and impactful." },
-            { label: "Fix Grammar", prompt: "Rewrite the selected text to be more academic and grammatically correct." },
-            { label: "Expand", prompt: "Expand heavily on this topic with detailed explanations and examples." }
+            { label: "Buat Skripsi", prompt: "Buatkan kerangka Bab 1 Skripsi tentang {topic}. Struktur lengkap dengan 5 Bab." },
+            { label: "Buat Jurnal", prompt: "Buatkan abstrak dan pendahuluan jurnal akademik tentang {topic}." },
+            { label: "Ke B.Inggris", prompt: "Translate teks yang dipilih ke Bahasa Inggris akademik." },
+            { label: "Ke B.Indo", prompt: "Translate teks yang dipilih ke Bahasa Indonesia baku." },
+            { label: "Tulis Ulang", prompt: "Tulis ulang teks ini agar lebih profesional, ringkas, dan berimpact." },
+            { label: "Cek Grammar", prompt: "Perbaiki tata bahasa dan ejaan teks yang dipilih." }
         ];
     } else if (host === Office.HostType.Excel) {
         actions = [
-            { label: "Gen Formula", prompt: "Write an Excel formula to: " },
-            { label: "Create Table", prompt: "Create a dummy dataset table for: " },
-            { label: "Analyze Data", prompt: "Analyze this data and give insights: " },
-            { label: "Format", prompt: "Suggest conditional formatting rules for: " }
+            { label: "Bikin Rumus", prompt: "Buatkan rumus Excel untuk: " },
+            { label: "Bikin Tabel", prompt: "Buatkan tabel dataset dummy untuk: " },
+            { label: "Analisa Data", prompt: "Analisa data yang dipilih dan berikan insight: " },
+            { label: "Format", prompt: "Berikan aturan Conditional Formatting untuk: " },
+            { label: "Buat Grafik", prompt: "Buatkan grafik dari data yang dipilih." }
         ];
     } else if (host === Office.HostType.PowerPoint) {
         actions = [
-            { label: "New Slide", prompt: "Create a slide content about: " },
-            { label: "Outline", prompt: "Create a 10-slide presentation outline for: " },
-            { label: "Speaker Notes", prompt: "Write speaker notes for a slide about: " }
+            { label: "Slide Baru", prompt: "Buatkan konten slide tentang: " },
+            { label: "Outline PPT", prompt: "Buatkan outline presentasi 10 slide tentang: " },
+            { label: "Catatan Pembicara", prompt: "Buatkan catatan pembicara untuk slide tentang: " },
+            { label: "5 Slide Langsung", prompt: "Buatkan 5 slide lengkap tentang: " }
         ];
     }
 
