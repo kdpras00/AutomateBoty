@@ -4,7 +4,7 @@
  */
 
 // Core Configuration
-const DEFAULT_API_KEY = "AIzaSyAmsulrYYqrxuWnlqwrn1UzHsPdTSedyR0"; // User provided
+const DEFAULT_API_KEY = "AIzaSyDM4fjZTT1F6Ux2D8anrQMe7SSShKVUgrQ"; // User provided
 let apiKey = localStorage.getItem("gemini_api_key") || DEFAULT_API_KEY;
 
 // DOM Elements
@@ -26,15 +26,19 @@ Office.onReady((info) => {
     // Check for saved API key
     // Check for saved API key
     const currentSavedKey = localStorage.getItem("gemini_api_key");
-    const OLD_INVALID_KEY = "AIzaSyCmSlRCCPgC1ph4vuco9hwLsTaDtnBPcSA";
+    // List of invalid/blocked keys to force clear
+    const INVALID_KEYS = [
+        "AIzaSyCmSlRCCPgC1ph4vuco9hwLsTaDtnBPcSA",
+        "AIzaSyAmsulrYYqrxuWnlqwrn1UzHsPdTSedyR0" // Blocked key
+    ];
 
-    if (currentSavedKey && currentSavedKey !== OLD_INVALID_KEY) {
+    if (currentSavedKey && !INVALID_KEYS.includes(currentSavedKey)) {
         apiKeyInput.value = currentSavedKey;
         apiKey = currentSavedKey;
     } else {
-        // If no key, or we found the OLD invalid key, reset to new default
-        if (currentSavedKey === OLD_INVALID_KEY) {
-            console.log("Removing old invalid API key from storage");
+        // If no key, or we found an invalid key, reset to new default
+        if (INVALID_KEYS.includes(currentSavedKey)) {
+            console.log("Removing invalid API key from storage");
             localStorage.removeItem("gemini_api_key");
         }
         apiKeyInput.value = DEFAULT_API_KEY;
@@ -52,9 +56,9 @@ Office.onReady((info) => {
     versionDiv.style.color = "#888";
     versionDiv.style.textAlign = "center";
     versionDiv.style.marginTop = "5px";
-    versionDiv.innerText = "v3.0 - API v1";
+    versionDiv.innerText = "v4.0 - Gemini 2.0 Flash";
     document.querySelector(".app-container").appendChild(versionDiv);
-    console.log("Gemini Add-in v3 loaded");
+    console.log("Gemini Add-in v4 loaded");
 });
 
 function updateNetworkStatus() {
@@ -140,7 +144,8 @@ async function callGeminiAPI(prompt) {
         throw new Error("No Internet connection.");
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    // Use v1beta and gemini-2.0-flash
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
     
     const systemContext = `You are a helpful assistant living inside Microsoft ${Office.context.host || 'Office'}. 
     Keep answers concise and relevant to document creation. 
