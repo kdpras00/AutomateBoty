@@ -167,15 +167,23 @@ async function callGeminiAPI(prompt) {
     if (host === Office.HostType.Word) {
         systemRole = "You are an expert academic writer and editor. Generate high-quality, professional, and detailed content suitable for Thesis (Skripsi), Journals, and formal documents. Use strictly formatted Markdown (headers, lists, bold). Do NOT chat. DIRECTLY output the document content requested.";
     } else if (host === Office.HostType.Excel) {
-        systemRole = "You are an Excel Expert. If asked for a formula, output ONLY the formula starting with =. If asked for data, output a CSV or Markdown table. Do not include explanations unless asked.";
+        systemRole = "You are an Excel Expert. If asked for a formula, output ONLY the formula starting with =. If asked for data, output a clean CSV format (comma separated) or a Markdown Table. Do NOT include conversational filler.";
     } else if (host === Office.HostType.PowerPoint) {
-        systemRole = "You are a Presentation Expert. Output content in bullet points suitable for slides. Keep it concise and impactful.";
+        systemRole = "You are a Presentation Expert. If asked for multiple slides, output a JSON Array: [{\"title\": \"Title\", \"points\": [\"Bullet1\", \"Bullet2\"]}]. If asked for one slide, output regular text: TITLE: [Title]\n- Points. Do NOT use Markdown.";
+    }
+
+    // 0. Get Document Context (Read text from file)
+    let docContext = "";
+    try {
+        docContext = await getDocumentContext();
+    } catch (e) {
+        console.log("Could not read document context:", e);
     }
 
     const payload = {
         contents: [{
             role: "user",
-            parts: [{ text: systemRole + "\n\nUser Request: " + prompt }]
+            parts: [{ text: systemRole + "\n\nDocument Context:\n" + docContext + "\n\nUser Request: " + prompt }]
         }]
     };
 
@@ -202,6 +210,46 @@ async function callGeminiAPI(prompt) {
     }
 
     return data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
+}
+
+async function getDocumentContext() {
+    // Attempt to read selection or body text
+    return new Promise((resolve) => {
+        if (Office.context.host === Office.HostType.Word) {
+            Word.run(async (context) => {
+                const selection = context.document.getSelection();
+                selection.load("text");
+                await context.sync();
+                if (selection.text && selection.text.trim().length > 0) {
+                     resolve(selection.text);
+                } else {
+                     // If selection empty, read body (first 2000 chars to avoid overload)
+                     const body = context.document.body;
+                     body.load("text");
+                     await context.sync();
+                     resolve(body.text.substring(0, 5000)); // Read up to 5k chars
+                }
+            }).catch(() => resolve(""));
+        } else if (Office.context.host === Office.HostType.Excel) {
+             Excel.run(async (context) => {
+                 const range = context.workbook.getSelectedRange();
+                 range.load("text");
+                 await context.sync();
+                 // range.text is a 2D array
+                 const textStr = range.text.map(row => row.join(", ")).join("\n");
+                 resolve(textStr);
+             }).catch(() => resolve(""));
+        } else {
+            // PowerPoint or others: Use generic getSelectedData
+             Office.context.document.getSelectedDataAsync(Office.CoercionType.Text, (result) => {
+                 if (result.status === Office.AsyncResultStatus.Succeeded) {
+                     resolve(result.value);
+                 } else {
+                     resolve("");
+                 }
+             });
+        }
+    });
 }
 
 // UI Helpers
@@ -236,19 +284,8 @@ function addBotMessage(text, withActions = false) {
     // Parse Markdown
     const htmlContent = marked.parse(text);
     
-    let actionButtons = "";
-    if (withActions) {
-        actionButtons = `
-            <div class="message-actions" style="margin-top: 8px; display: flex; gap: 8px;">
-                <button onclick="insertTextFromMessage(this)" class="action-btn" title="Insert response into document">Insert</button>
-                <button onclick="copyToClipboard(this)" class="action-btn" title="Copy to clipboard">Copy</button>
-            </div>
-        `;
-    }
-
     div.innerHTML = `
         <div class="message-content">${htmlContent}</div>
-        ${actionButtons}
     `;
     
     // Highlight code blocks
@@ -300,6 +337,8 @@ function setupQuickActions(host) {
         actions = [
             { label: "Draft Thesis", prompt: "Write a detailed outline for a Thesis (Skripsi) on {topic}. Structure it with Chapters 1-5." },
             { label: "Create Journal", prompt: "Write an academic journal abstract and introduction about {topic}." },
+            { label: "Translate to English", prompt: "Translate the selected text to academic English." },
+            { label: "Rewrite Professional", prompt: "Rewrite this text to be more professional, concise, and impactful." },
             { label: "Fix Grammar", prompt: "Rewrite the selected text to be more academic and grammatically correct." },
             { label: "Expand", prompt: "Expand heavily on this topic with detailed explanations and examples." }
         ];
@@ -367,25 +406,11 @@ window.copyToClipboard = function(btn) {
 };
 
 function insertIntoDocument(text) {
-    // Generic insertion using setSelectedDataAsync
-    // This works for Word (text), Excel (cell), PPT (width depends on selection)
+    // Generic insertion logic
     
-    // Check if it looks like a table (markdown table)
-    const isTable = text.includes("|") && text.includes("---");
-    
-    if (Office.context.host === Office.HostType.Excel) {
-        // Excel specific logic could go here (e.g., parsing CSV/Table)
-        // For now, simple text insertion or matrix insertion would be ideal
-        // But matrix requires [[],[]] format for coercion.Table
-        Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text }, (asyncResult) => {
-            if (asyncResult.status === Office.AsyncResultStatus.Failed) {
-                console.error("Action failed: " + asyncResult.error.message);
-            }
-        });
-    } else if (Office.context.host === Office.HostType.Word) {
-        // Convert Markdown to HTML for Word
+    if (Office.context.host === Office.HostType.Word) {
+        // Word: Convert Markdown to HTML
         const htmlContent = marked.parse(text);
-        
         Office.context.document.setSelectedDataAsync(htmlContent, { coercionType: Office.CoercionType.Html }, (asyncResult) => {
              if (asyncResult.status === Office.AsyncResultStatus.Failed) {
                  console.error("Action failed: " + asyncResult.error.message);
@@ -393,12 +418,179 @@ function insertIntoDocument(text) {
                  Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text });
              }
         });
+
+    } else if (Office.context.host === Office.HostType.Excel) {
+        // Excel: Check for Chart/Grafik keyword
+        if (text.toLowerCase().includes("chart") || text.toLowerCase().includes("grafik")) {
+             runExcelChartGen(text);
+        } else {
+             // Else data/table or formula
+             runExcelDataGen(text);
+        }
+
     } else {
-        // PowerPoint / Other
-        Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text }, (asyncResult) => {
-            if (asyncResult.status === Office.AsyncResultStatus.Failed) {
-                console.error("Action failed: " + asyncResult.error.message);
-            }
-        });
+        // PowerPoint: Try to create a Smart Slide
+        runPowerPointSlideGen(text);
     }
+}
+
+async function runExcelDataGen(text) {
+    // 1. Check if it's a Formula (starts with =)
+    const trimmed = text.trim();
+    if (trimmed.startsWith("=")) {
+        // Insert formula into selected cell
+        Excel.run(async (context) => {
+            const range = context.workbook.getSelectedRange();
+            range.formulas = [[trimmed]];
+            await context.sync();
+            console.log("Formula inserted.");
+        }).catch(err => console.error(err));
+        return;
+    }
+
+    // 2. CSV / Data Table parser
+    // Heuristic: Does it look like CSV? (Comma or Tab separated, multiple lines)
+    // Or just a list.
+    // We will parse standard CSV format (e.g. "Name,Age\nJohn,25")
+    
+    // Simple CSV parser (handles commas)
+    let rows = text.split('\n').filter(r => r.trim() !== '');
+    
+    // Remove "Sure" lines
+     if (rows.length > 0 && (rows[0].toLowerCase().startsWith("sure") || rows[0].toLowerCase().startsWith("here"))) {
+        rows.shift();
+    }
+    
+    if (rows.length === 0) return;
+
+    // Detect delimiter (Comma or Pipe or Tab)
+    // We'll assume the prompt asked for CSV or Table.
+    // Let's try to detect | (Markdown table) vs , (CSV)
+    let delimiter = ",";
+    if (rows[0].includes("|")) {
+        delimiter = "|";
+        // Filter out separator lines like "|---|---|"
+        rows = rows.filter(r => !r.includes("---"));
+    }
+
+    const matrix = rows.map(row => {
+        // Split by delimiter
+        let cols = row.split(delimiter);
+        // Clean whitespace
+        return cols.map(c => c.trim().replace(/^\||\|$/g, '')); // Remove leading/trailing pipes if markdown
+    });
+
+    if (matrix.length === 0) return;
+
+    // 3. Insert Matrix into Excel
+    await Excel.run(async (context) => {
+        const sheet = context.workbook.worksheets.getActiveWorksheet();
+        const activeRange = context.workbook.getSelectedRange();
+        // Determine target range based on matrix size
+        const numRows = matrix.length;
+        const numCols = matrix[0].length;
+        
+        // We can't easily "resize" from activeRange without loading props, 
+        // but we can use getResizedRange relative to the top-left of selection.
+        const targetRange = activeRange.getResizedRange(numRows - 1, numCols - 1);
+        
+        console.log(`Writing ${numRows}x${numCols} matrix to Excel.`);
+        targetRange.values = matrix;
+        targetRange.format.autofitColumns();
+        
+        await context.sync();
+    }).catch(error => {
+        console.error("Excel Error: " + error);
+        // Fallback
+        Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text });
+    });
+}
+
+async function runExcelChartGen(text) {
+    // Basic heuristic: Detect chart type logic or just assume "ColumnClustered"
+    // Ideally prompt would return JSON {"type": "Line", "data": ...}
+    // But for "Crazy" mode, let's just make it Smart.
+    
+    // If text contains "Pie", use Pie.
+    // If text contains "Line", use Line.
+    // Default Column.
+    
+    let chartType = "ColumnClustered";
+    if (text.toLowerCase().includes("pie")) chartType = "Pie";
+    else if (text.toLowerCase().includes("line") || text.toLowerCase().includes("garis")) chartType = "Line";
+    else if (text.toLowerCase().includes("bar") || text.toLowerCase().includes("batang")) chartType = "BarClustered";
+    
+    await Excel.run(async (context) => {
+        const sheet = context.workbook.worksheets.getActiveWorksheet();
+        const range = context.workbook.getSelectedRange(); // Assume user selected data
+        
+        // If selection is single cell, try used range? No, dangerous.
+        // Let's assume user selected data.
+        
+        const chart = sheet.charts.add(chartType, range);
+        chart.title.text = "Generated Chart";
+        
+        await context.sync();
+        console.log("Chart created.");
+    }).catch(err => {
+        console.error("Chart Error: " + err);
+    });
+}
+
+async function runPowerPointSlideGen(text) {
+    // 1. Try to Parse as JSON (for Multi-Slide Decks)
+    let slidesData = [];
+    
+    try {
+        // Find JSON Array in text
+        const jsonMatch = text.match(/\[\s*\{.*\}\s*\]/s);
+        if (jsonMatch) {
+            slidesData = JSON.parse(jsonMatch[0]);
+        }
+    } catch (e) {
+        console.log("Not JSON, falling back to single slide parser.");
+    }
+
+    // 2. Fallback: Parse Single Slide Format (Title\nBullets)
+    if (slidesData.length === 0) {
+         let lines = text.split('\n').filter(line => line.trim() !== '');
+         // Cleanup "Sure"
+         if (lines.length > 0 && (lines[0].toLowerCase().startsWith("sure") || lines[0].toLowerCase().startsWith("here"))) lines.shift();
+         
+         if (lines.length > 0) {
+             let title = lines[0].replace(/^TITLE:\s*/i, '').replace(/^[#*]+\s*/, '').trim();
+             lines.shift();
+             let points = lines.map(line => line.replace(/^[-*•]\s*/, '').trim());
+             slidesData.push({ title: title, points: points });
+         }
+    }
+    
+    if (slidesData.length === 0) return;
+
+    // 3. Generate Slides Loop
+    await PowerPoint.run(async (context) => {
+        const presentation = context.presentation;
+        const slides = presentation.slides;
+
+        // Loop through each slide data
+        for (const data of slidesData) {
+            const slide = slides.add();
+            // Assuming Standard Layout (Title + Content)
+            const titleShape = slide.shapes.getItemAt(0); 
+            const bodyShape = slide.shapes.getItemAt(1);
+            
+            titleShape.textFrame.textRange.text = data.title || "No Title";
+            
+            // Body
+            const bodyText = Array.isArray(data.points) ? data.points.join('\n') : (data.points || "");
+            bodyShape.textFrame.textRange.text = bodyText;
+        }
+
+        await context.sync();
+        console.log(`Created ${slidesData.length} slides.`);
+    }).catch(error => {
+        console.error("PPT Error: " + error);
+        // Fallback
+        Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text });
+    });
 }
