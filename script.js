@@ -119,7 +119,7 @@ async function callGeminiAPI(prompt) {
         throw new Error("No Internet connection.");
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
     
     const systemContext = `You are a helpful assistant living inside Microsoft ${Office.context.host || 'Office'}. 
     Keep answers concise and relevant to document creation. 
