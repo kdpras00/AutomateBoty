@@ -45,6 +45,16 @@ Office.onReady((info) => {
     updateNetworkStatus();
     window.addEventListener('online', updateNetworkStatus);
     window.addEventListener('offline', updateNetworkStatus);
+    
+    // Add version indicator
+    const versionDiv = document.createElement("div");
+    versionDiv.style.fontSize = "10px";
+    versionDiv.style.color = "#888";
+    versionDiv.style.textAlign = "center";
+    versionDiv.style.marginTop = "5px";
+    versionDiv.innerText = "v3.0 - API v1";
+    document.querySelector(".app-container").appendChild(versionDiv);
+    console.log("Gemini Add-in v3 loaded");
 });
 
 function updateNetworkStatus() {
