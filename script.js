@@ -383,15 +383,14 @@ function insertIntoDocument(text) {
             }
         });
     } else if (Office.context.host === Office.HostType.Word) {
-        // Word can handle HTML or Text. Markdown parsed to HTML is good.
-        // Let's try inserting as HTML if we have it, else text.
-        // We only have innerText passed here. Let's re-generate HTML ? 
-        // No, let's just insert Ooxml or Text.
-        // For simplicity in V1: Insert Text.
-        Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text }, (asyncResult) => {
+        // Convert Markdown to HTML for Word
+        const htmlContent = marked.parse(text);
+        
+        Office.context.document.setSelectedDataAsync(htmlContent, { coercionType: Office.CoercionType.Html }, (asyncResult) => {
              if (asyncResult.status === Office.AsyncResultStatus.Failed) {
-                 // Try inserting as HTML if Text fails or just log
                  console.error("Action failed: " + asyncResult.error.message);
+                 // Fallback to text if HTML fails
+                 Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text });
              }
         });
     } else {
