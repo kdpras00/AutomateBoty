@@ -111,6 +111,39 @@ h1 {
     gap: 1rem;
 }
 
+/* Quick Actions Area */
+.quick-actions {
+    display: flex;
+    gap: 8px;
+    padding: 0 16px 8px 16px;
+    overflow-x: auto;
+    white-space: nowrap;
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+    background-color: var(--chat-bg);
+}
+.quick-actions::-webkit-scrollbar {
+    display: none;
+}
+
+.action-pill {
+    background-color: var(--bg-color);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.action-pill:hover {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
 .message {
     max-width: 85%;
     display: flex;

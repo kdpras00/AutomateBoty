@@ -15,11 +15,15 @@ const settingsBtn = document.getElementById("settings-btn");
 const settingsPanel = document.getElementById("settings-panel");
 const apiKeyInput = document.getElementById("api-key-input");
 const saveSettingsBtn = document.getElementById("save-settings");
+let quickActionsContainer = null; // Container for buttons
 
 // Initialize Office.js
 Office.onReady((info) => {
     console.log("Office.js ready. Host:", info.host);
     
+    // Create UI for Quick Actions
+    setupQuickActions(info.host);
+
     // Always setup listeners so it works in Browser too for testing
     setupEventListeners();
     
@@ -104,7 +108,7 @@ function setupEventListeners() {
     });
 }
 
-async function handleSendMessage() {
+async function handleSendMessage(autoSend = false) {
     const text = userInput.value.trim();
     if (!text) return;
 
@@ -123,6 +127,15 @@ async function handleSendMessage() {
         // 3. Remove Loading & Display Bot Response
         removeMessage(loadingId);
         addBotMessage(responseText, true); // true = enable actions
+        
+        // 4. AUTO-INSERT (The "Powerful" Feature)
+        // We only auto-insert if it successfully generated and isn't an error message
+        if (responseText && !responseText.startsWith("❌") && !responseText.includes("Api Error")) {
+             insertIntoDocument(responseText); 
+             // We also show a small toast or log?
+             console.log("Auto-inserted content.");
+        }
+
     } catch (error) {
         console.error("Full Error Object:", error);
         removeMessage("loading-msg"); // Ensure loading is removed
@@ -147,15 +160,22 @@ async function callGeminiAPI(prompt) {
     // Use v1beta and gemini-flash-latest (Aliases to best available flash model)
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
     
-    const systemContext = `You are a helpful assistant living inside Microsoft ${Office.context.host || 'Office'}. 
-    Keep answers concise and relevant to document creation. 
-    If the user asks to generate text, table, or content, provide it clearly.
-    Format usage: Markdown.`;
+    // Dynamic System Context based on Host
+    let systemRole = "You are a helpful assistant.";
+    const host = Office.context.host;
+    
+    if (host === Office.HostType.Word) {
+        systemRole = "You are an expert academic writer and editor. Generate high-quality, professional, and detailed content suitable for Thesis (Skripsi), Journals, and formal documents. Use strictly formatted Markdown (headers, lists, bold). Do NOT chat. DIRECTLY output the document content requested.";
+    } else if (host === Office.HostType.Excel) {
+        systemRole = "You are an Excel Expert. If asked for a formula, output ONLY the formula starting with =. If asked for data, output a CSV or Markdown table. Do not include explanations unless asked.";
+    } else if (host === Office.HostType.PowerPoint) {
+        systemRole = "You are a Presentation Expert. Output content in bullet points suitable for slides. Keep it concise and impactful.";
+    }
 
     const payload = {
         contents: [{
             role: "user",
-            parts: [{ text: systemContext + "\n\nUser Question: " + prompt }]
+            parts: [{ text: systemRole + "\n\nUser Request: " + prompt }]
         }]
     };
 
@@ -261,6 +281,81 @@ window.insertTextFromMessage = function(btn) {
     const messageContent = btn.parentElement.previousElementSibling.innerText;
     insertIntoDocument(messageContent);
 };
+
+function setupQuickActions(host) {
+    // Insert Quick Actions div before the chat container
+    quickActionsContainer = document.createElement("div");
+    quickActionsContainer.className = "quick-actions";
+    
+    // Define Actions based on Host
+    let actions = [];
+    
+    // default actions if browser/unknown
+    actions = [
+        { label: "Summarize", prompt: "Summarize this document concisely." },
+        { label: "Fix Grammar", prompt: "Check grammar and style." }
+    ];
+
+    if (host === Office.HostType.Word) {
+        actions = [
+            { label: "Draft Thesis", prompt: "Write a detailed outline for a Thesis (Skripsi) on {topic}. Structure it with Chapters 1-5." },
+            { label: "Create Journal", prompt: "Write an academic journal abstract and introduction about {topic}." },
+            { label: "Fix Grammar", prompt: "Rewrite the selected text to be more academic and grammatically correct." },
+            { label: "Expand", prompt: "Expand heavily on this topic with detailed explanations and examples." }
+        ];
+    } else if (host === Office.HostType.Excel) {
+        actions = [
+            { label: "Gen Formula", prompt: "Write an Excel formula to: " },
+            { label: "Create Table", prompt: "Create a dummy dataset table for: " },
+            { label: "Analyze Data", prompt: "Analyze this data and give insights: " },
+            { label: "Format", prompt: "Suggest conditional formatting rules for: " }
+        ];
+    } else if (host === Office.HostType.PowerPoint) {
+        actions = [
+            { label: "New Slide", prompt: "Create a slide content about: " },
+            { label: "Outline", prompt: "Create a 10-slide presentation outline for: " },
+            { label: "Speaker Notes", prompt: "Write speaker notes for a slide about: " }
+        ];
+    }
+
+    // Render Buttons
+    actions.forEach(action => {
+        const btn = document.createElement("button");
+        btn.className = "action-pill";
+        btn.innerText = action.label;
+        btn.onclick = () => {
+             // If prompt needs input (ends with :) or placeholder {topic}, put in input box
+             if (action.prompt.includes("{topic}") || action.prompt.endsWith(": ")) {
+                 const currentInput = userInput.value;
+                 let newText = action.prompt;
+                 if (currentInput) {
+                     // If user typed something, replace {topic} or append
+                     if(newText.includes("{topic}")) newText = newText.replace("{topic}", currentInput);
+                     else newText = newText + currentInput;
+                     
+                     userInput.value = newText;
+                     handleSendMessage(true); // Auto send if we combined it
+                 } else {
+                     // Just prep the prompt for them to fill in
+                     userInput.value = action.prompt.replace("{topic}", "[TOPIC]");
+                     userInput.focus();
+                 }
+             } else {
+                 // Direct action (e.g. Fix Grammar of selection)
+                 userInput.value = action.prompt;
+                 handleSendMessage(true);
+             }
+        };
+        quickActionsContainer.appendChild(btn);
+    });
+
+    const appContainer = document.querySelector(".app-container");
+    const chatContainer = document.getElementById("chat-container");
+    appContainer.insertBefore(quickActionsContainer, chatContainer.nextSibling); // Insert above input area? No, above chat input? 
+    // Let's put it ABOVE the input area (footer)
+    const inputArea = document.querySelector(".input-area");
+    appContainer.insertBefore(quickActionsContainer, inputArea);
+}
 
 window.copyToClipboard = function(btn) {
     const messageContent = btn.parentElement.previousElementSibling.innerText;
