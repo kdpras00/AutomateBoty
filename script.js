@@ -127,19 +127,39 @@ function setupEventListeners() {
                  const existingIndicator = document.getElementById("file-indicator");
                  if(existingIndicator) existingIndicator.remove();
                  
+                 // Style the indicator
                  const indicator = document.createElement("div");
                  indicator.id = "file-indicator";
-                 indicator.style.fontSize = "11px";
-                 indicator.style.padding = "4px 8px";
+                 indicator.style.display = "flex";
+                 indicator.style.alignItems = "center";
+                 indicator.style.justifyContent = "space-between";
+                 indicator.style.padding = "8px 16px";
                  indicator.style.backgroundColor = "#e0e7ff";
+                 indicator.style.borderTop = "1px solid #c7d2fe";
+                 indicator.style.fontSize = "12px";
                  indicator.style.color = "#333";
-                 indicator.style.borderRadius = "12px";
-                 indicator.style.marginBottom = "5px";
-                 indicator.style.display = "inline-block";
-                 indicator.innerText = previewText;
+                 indicator.style.marginBottom = "0"; 
                  
+                 indicator.innerHTML = `
+                    <span style="display:flex; align-items:center; gap:6px;">
+                        <span>📎</span> 
+                        <strong>${file.name}</strong> 
+                        <span style="opacity:0.7">selected</span>
+                    </span>
+                    <button id="remove-file-btn" style="background:none; border:none; cursor:pointer; color:#ef4444; font-weight:bold; padding:4px;">✕</button>
+                 `;
+                 
+                 // Insert ABOVE the input area (in app-container, before input-area)
+                 const appContainer = document.querySelector(".app-container");
                  const inputArea = document.querySelector(".input-area");
-                 inputArea.insertBefore(indicator, userInput);
+                 appContainer.insertBefore(indicator, inputArea);
+
+                 // Add handler for remove button
+                 document.getElementById("remove-file-btn").addEventListener("click", () => {
+                     window.currentFile = null;
+                     indicator.remove();
+                     fileInput.value = "";
+                 });
                  
                  // If it's an image, read strictly for base64 now
                  // Implementation in handleSendMessage will read it.
@@ -429,7 +449,8 @@ function setupQuickActions(host) {
     if (host === Office.HostType.Word) {
         actions = [
             { label: "Buat Skripsi", prompt: "Buatkan kerangka Bab 1 Skripsi tentang {topic}. Struktur lengkap dengan 5 Bab." },
-            { label: "Buat Jurnal", prompt: "Buatkan abstrak dan pendahuluan jurnal akademik tentang {topic}." },
+            { label: "Buat Jurnal", prompt: "Buatkan abstrak (Bahasa Indonesia dan Bahasa Inggris) dan pendahuluan jurnal akademik tentang {topic}." },
+            { label: "Buat Abstrak (2 Bhs)", prompt: "Buatkan dua versi abstrak (Bahasa Indonesia dan Bahasa Inggris) untuk karya tulis ilmiah tentang {topic}." },
             { label: "Ke B.Inggris", prompt: "Translate teks yang dipilih ke Bahasa Inggris akademik." },
             { label: "Ke B.Indo", prompt: "Translate teks yang dipilih ke Bahasa Indonesia baku." },
             { label: "Tulis Ulang", prompt: "Tulis ulang teks ini agar lebih profesional, ringkas, dan berimpact." },
@@ -445,10 +466,10 @@ function setupQuickActions(host) {
         ];
     } else if (host === Office.HostType.PowerPoint) {
         actions = [
+            { label: "Perbaiki Teks", prompt: "Perbaiki grammar dan profesionalitas teks ini: " },
+            { label: "Translate Slide", prompt: "Translate teks ini ke Bahasa Indonesia: " },
             { label: "Slide Baru", prompt: "Buatkan konten slide tentang: " },
-            { label: "Outline PPT", prompt: "Buatkan outline presentasi 10 slide tentang: " },
-            { label: "Catatan Pembicara", prompt: "Buatkan catatan pembicara untuk slide tentang: " },
-            { label: "5 Slide Langsung", prompt: "Buatkan 5 slide lengkap tentang: " }
+            { label: "Outline PPT", prompt: "Buatkan outline presentasi 10 slide tentang: " }
         ];
     }
 
@@ -524,8 +545,17 @@ function insertIntoDocument(text) {
         }
 
     } else {
-        // PowerPoint: Try to create a Smart Slide
-        runPowerPointSlideGen(text);
+        // PowerPoint
+        // 1. Try to Insert as Text (if a text box is selected)
+        Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text }, (asyncResult) => {
+             if (asyncResult.status === Office.AsyncResultStatus.Failed) {
+                 // 2. If Failed (likely no selection), Create a New Slide
+                 console.log("Insertion failed (maybe no selection?), trying to create slide instead.");
+                 runPowerPointSlideGen(text);
+             } else {
+                 console.log("Text inserted into selected shape.");
+             }
+        });
     }
 }
 
