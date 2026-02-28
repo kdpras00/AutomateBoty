@@ -58,32 +58,34 @@ async function wordDynamicFormat(p) {
                     paras.load("items");
                     await ctx.sync();
                     for (const para of paras.items) {
-                        if (props.alignment) para.alignment = props.alignment; // "Left", "Centered", "Right", "Justified"
-                        if (props.lineSpacing) para.lineSpacing = parseFloat(props.lineSpacing) * 12; // Approximation
-                        if (props.spaceBefore) para.spaceBefore = parseFloat(props.spaceBefore);
-                        if (props.spaceAfter)  para.spaceAfter  = parseFloat(props.spaceAfter);
-                        if (props.firstLineIndent) para.firstLineIndent = parseFloat(props.firstLineIndent);
+                        try { if (props.alignment) para.alignment = props.alignment; } catch(e) { console.warn("Alignment error", e); }
+                        try { if (props.lineSpacing) para.lineSpacing = parseFloat(props.lineSpacing) * 12; } catch(e){}
+                        try { if (props.spaceBefore) para.spaceBefore = parseFloat(props.spaceBefore); } catch(e){}
+                        try { if (props.spaceAfter)  para.spaceAfter  = parseFloat(props.spaceAfter); } catch(e){}
+                        try { if (props.firstLineIndent) para.firstLineIndent = parseFloat(props.firstLineIndent); } catch(e){}
                     }
                 } else if (tgtName === "page" && ctx.document.sections) {
                     const sections = ctx.document.sections;
                     sections.load("items");
                     await ctx.sync();
                     for (const section of sections.items) {
-                        const pg = section.pageSetup;
-                        if (props.marginTop) pg.topMargin = parseFloat(props.marginTop) * 28.35;
-                        if (props.marginBottom) pg.bottomMargin = parseFloat(props.marginBottom) * 28.35;
-                        if (props.marginLeft) pg.leftMargin = parseFloat(props.marginLeft) * 28.35;
-                        if (props.marginRight) pg.rightMargin = parseFloat(props.marginRight) * 28.35;
-                        const ori = (props.orientation || "").toLowerCase();
-                        if (ori === "landscape") pg.orientation = Word.PageOrientation.landscape;
-                        else if (ori === "portrait") pg.orientation = Word.PageOrientation.portrait;
+                        try {
+                            const pg = section.pageSetup;
+                            if (props.marginTop) pg.topMargin = parseFloat(props.marginTop) * 28.35;
+                            if (props.marginBottom) pg.bottomMargin = parseFloat(props.marginBottom) * 28.35;
+                            if (props.marginLeft) pg.leftMargin = parseFloat(props.marginLeft) * 28.35;
+                            if (props.marginRight) pg.rightMargin = parseFloat(props.marginRight) * 28.35;
+                            const ori = (props.orientation || "").toLowerCase();
+                            if (ori === "landscape") pg.orientation = Word.PageOrientation.landscape;
+                            else if (ori === "portrait") pg.orientation = Word.PageOrientation.portrait;
 
-                        if (props.paperSize) {
-                            const size = (props.paperSize || "").toLowerCase();
-                            if (size === "a4") pg.paperSize = Word.PaperType.a4;
-                            else if (size === "letter") pg.paperSize = Word.PaperType.letter;
-                            else if (size === "legal") pg.paperSize = Word.PaperType.legal;
-                        }
+                            if (props.paperSize) {
+                                const size = (props.paperSize || "").toLowerCase();
+                                if (size === "a4") pg.paperSize = Word.PaperType.a4;
+                                else if (size === "letter") pg.paperSize = Word.PaperType.letter;
+                                else if (size === "legal") pg.paperSize = Word.PaperType.legal;
+                            }
+                        } catch(e) { console.warn("PageSetup error", e); }
                     }
                 }
             }
@@ -110,13 +112,15 @@ async function wordFormatPage(p) {
         await ctx.sync();
 
         for (const section of sections.items) {
-            const pg = section.pageSetup;
-            if (p.marginTop    !== undefined) pg.topMargin    = cmToPt(p.marginTop);
-            if (p.marginBottom !== undefined) pg.bottomMargin = cmToPt(p.marginBottom);
-            if (p.marginLeft   !== undefined) pg.leftMargin   = cmToPt(p.marginLeft);
-            if (p.marginRight  !== undefined) pg.rightMargin  = cmToPt(p.marginRight);
-            if (p.orientation === "landscape") pg.orientation = Word.PageOrientation.landscape;
-            else if (p.orientation === "portrait")  pg.orientation = Word.PageOrientation.portrait;
+            try {
+                const pg = section.pageSetup;
+                if (p.marginTop    !== undefined) pg.topMargin    = cmToPt(p.marginTop);
+                if (p.marginBottom !== undefined) pg.bottomMargin = cmToPt(p.marginBottom);
+                if (p.marginLeft   !== undefined) pg.leftMargin   = cmToPt(p.marginLeft);
+                if (p.marginRight  !== undefined) pg.rightMargin  = cmToPt(p.marginRight);
+                if (p.orientation === "landscape") pg.orientation = Word.PageOrientation.landscape;
+                else if (p.orientation === "portrait")  pg.orientation = Word.PageOrientation.portrait;
+            } catch(e) { console.warn("pageSetup error", e); }
         }
         await ctx.sync();
     });
