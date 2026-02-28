@@ -1,59 +1,304 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutomateBoty Assistant</title>
-    <!-- Office JavaScript API -->
+    <title>AutomateBoty Workspace</title>
     <script type="text/javascript" src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <!-- Highlight.js for code blocks -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-light.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
-    <div class="app-container">
-        <header>
-            <div class="logo-area">
-                <span class="logo-icon">✨</span>
-                <h1>AutomateBoty</h1>
+<div class="layout">
+    <main class="main-content">
+        <!-- HEADER -->
+        <header class="app-header">
+    <div class="logo-area">
+        <svg class="icon-logo" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <h1>AutomateBoty</h1>
+        <span id="host-badge" class="host-badge">...</span>
+    </div>
+    <div class="header-actions">
+        <button id="menu-btn" class="icon-btn" title="Menu">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 12H20M4 6H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+    </div>
+</header>
+
+        
+        <!-- TOP NAVBAR -->
+        <nav class="top-nav">
+    <div class="nav-scroll">
+        <button id="nav-chat" class="nav-btn active" title="Chat" onclick="switchMode('chat')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M21 11.5C21 16.1944 16.9706 20 12 20C10.7416 20 9.54279 19.7828 8.45524 19.3953C7.45873 19.0403 6.64333 18.9141 5.92244 18.9959C4.85232 19.1174 3.32768 19.6469 2.14667 19.9575C1.86873 20.0306 1.62125 19.7424 1.7371 19.4831C2.17411 18.5048 2.50202 17.5144 2.62883 16.5912C2.71615 15.9554 2.57602 15.223 2.18439 14.3642C1.41169 12.6698 1 10.8711 1 9C1 4.02944 5.92487 0 11.5 0C17.0751 0 21 4.02944 21 11.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+            <span>Chat</span>
+        </button>
+        <button id="nav-academic" class="nav-btn" title="Writing Tools" onclick="switchMode('academic')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 4L4 8L12 12L20 8L12 4Z M4 12L12 16L20 12 M4 16L12 20L20 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Writing</span>
+        </button>
+        <button id="nav-data" class="nav-btn" title="Data Analysis" onclick="switchMode('data')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M18 20V10 M12 20V4 M6 20V14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Data</span>
+        </button>
+        <button id="nav-presentation" class="nav-btn" title="Presentation" onclick="switchMode('presentation')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.8"/><path d="M8 20H16 M12 16V20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span>Slide</span>
+        </button>
+        <div class="nav-divider"></div>
+        <button id="nav-templates" class="nav-btn" title="Templates" onclick="switchMode('templates')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M8 6H21 M8 12H21 M8 18H21 M3 6H3.01 M3 12H3.01 M3 18H3.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button id="nav-history" class="nav-btn" title="History" onclick="switchMode('history')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 8V12L15 15 M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button id="nav-settings" class="nav-btn" title="Settings" onclick="switchMode('settings')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M19.4 15A1.65 1.65 0 0 0 21 13.35V10.65A1.65 1.65 0 0 0 19.4 9C19.14 8.94 18.91 8.81 18.73 8.61C18.55 8.41 18.45 8.16 18.44 7.89C18.41 7.15 18.04 6.47 17.43 6.02A1.65 1.65 0 0 0 15 6.4L12.65 5.04C12.39 4.88 12.18 4.65 12.06 4.38A1.65 1.65 0 0 0 10.65 3H7.35A1.65 1.65 0 0 0 5.7 4.65C5.64 4.96 5.48 5.23 5.25 5.43C5.02 5.63 4.73 5.75 4.42 5.76C3.65 5.8 2.95 6.19 2.5 6.81A1.65 1.65 0 0 0 3 9.4L4.6 11.35C4.76 11.51 4.85 11.75 4.85 12C4.85 12.25 4.76 12.49 4.6 12.65L3 14.6A1.65 1.65 0 0 0 2.5 17.19C2.95 17.81 3.65 18.2 4.42 18.24C4.73 18.25 5.02 18.37 5.25 18.57C5.48 18.77 5.64 19.04 5.7 19.35A1.65 1.65 0 0 0 7.35 21H10.65A1.65 1.65 0 0 0 12.3 19.35C12.36 19.04 12.52 18.77 12.75 18.57C12.98 18.37 13.27 18.25 13.58 18.24C14.35 18.2 15.05 17.81 15.5 17.19A1.65 1.65 0 0 0 15 14.6L12.65 13.24C12.39 13.08 12.18 12.85 12.06 12.58A1.65 1.65 0 0 0 10.65 11.2V8.5A1.65 1.65 0 0 0 12.3 6.85C12.56 6.91 12.79 7.04 12.97 7.24C13.15 7.44 13.25 7.69 13.26 7.96C13.29 8.7 13.66 9.38 14.27 9.83A1.65 1.65 0 0 0 16.7 9.45L18.7 8.24C18.96 8.08 19.26 8.01 19.56 8.04C19.86 8.07 20.14 8.2 20.35 8.41C20.56 8.62 20.69 8.9 20.72 9.2C20.75 9.5 20.68 9.8 20.52 10.06L19.4 12V15Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+    </div>
+</nav>
+
+        
+        <!-- DYNAMIC PANELS (Absolute or overlapping) -->
+        <div class="panels-container">
+            <div id="academic-panel" class="hidden mode-panel">
+    <div class="panel-header">
+        <div class="panel-title">Academic Writing</div>
+        <p class="panel-desc">Alat bantu penulisan ilmiah dan akademik.</p>
+    </div>
+    
+    <div class="tools-grid">
+        <div class="tool-group">
+            <div class="tool-group-label">Parafrase</div>
+            <div class="tool-btns">
+                <button class="btn-outline" onclick="parafraseTeks('ringan')">Ringan</button>
+                <button class="btn-outline" onclick="parafraseTeks('sedang')">Sedang</button>
+                <button class="btn-outline" onclick="parafraseTeks('ketat')">Ketat</button>
             </div>
-            <button id="settings-btn" title="Settings">⚙️</button>
-        </header>
-
-        <div id="settings-panel" class="hidden">
-            <label for="api-key-input">API Key</label>
-            <input type="password" id="api-key-input" placeholder="Enter Gemini API Key">
-            <button id="save-settings">Save</button>
         </div>
-
-        <div class="chat-container" id="chat-container">
-            <div class="message bot-message">
-                <div class="message-content">
-                    Hello! I'm your AutomateBoty assistant. How can I help you with your document today?
-                </div>
+        <div class="tool-group">
+            <div class="tool-group-label">Pemeriksaan & Bimbingan</div>
+            <div class="tool-btns">
+                <button class="btn-outline" onclick="proofreadingMendalam()">Proofreading</button>
+                <button id="bimbingan-btn" class="btn-outline" onclick="toggleBimbinganSkripsi()">Bimbingan Terpadu</button>
             </div>
-        </div>
-
-        <div class="input-area">
-            <input type="file" id="file-upload" style="display: none;" accept="image/*,.txt,.csv,.md,.json,.js,.py">
-            <button id="upload-btn" title="Upload File/Image" style="margin-right: 5px; background: none; border: none; cursor: pointer; color: var(--text-secondary);">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M21.44 11.05L12.25 20.24C11.1242 21.3658 9.59718 21.9983 8.00501 21.9983C6.41283 21.9983 4.88582 21.3658 3.76001 20.24C2.63419 19.1142 2.00171 17.5872 2.00171 15.995C2.00171 14.4028 2.63419 12.8758 3.76001 11.75L12.95 2.56001C13.7005 1.80947 14.7184 1.38782 15.7798 1.38782C16.8412 1.38782 17.859 1.80947 18.61 2.56001C19.3605 3.31055 19.7822 4.32837 19.7822 5.39001C19.7822 6.45165 19.3605 7.46947 18.61 8.22001L9.42001 17.41C9.04473 17.7853 8.53582 17.9961 8.00501 17.9961C7.47419 17.9961 6.96528 17.7853 6.59001 17.41C6.21473 17.0347 6.00391 16.5258 6.00391 15.995C6.00391 15.4642 6.21473 14.9553 6.59001 14.58L15.07 6.10001" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </button>
-            <textarea id="user-input" placeholder="Ask AutomateBoty..." rows="1"></textarea>
-            <button id="send-btn">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </button>
         </div>
     </div>
-    <script src="script.js?v=5"></script>
+    
+    <!-- Outline Builder -->
+    <div id="outline-builder-panel" class="tool-group" style="margin-top:16px;">
+        <div class="tool-group-label">Outline Builder</div>
+        <select id="outline-type-select" class="select-input">
+            <option value="Skripsi">Skripsi</option>
+            <option value="Jurnal Ilmiah">Jurnal Ilmiah</option>
+            <option value="Makalah">Makalah</option>
+            <option value="Artikel">Artikel</option>
+        </select>
+        <textarea id="outline-topic-input" placeholder="Topik penelitian..." rows="2" style="margin-top:8px;"></textarea>
+        <button class="btn-primary" style="margin-top:8px;width:100%;" onclick="generateOutline()">Buat Outline Struktur</button>
+        <div id="outline-result" style="margin-top:8px;"></div>
+    </div>
+</div>
+
+            <div id="data-panel" class="hidden mode-panel">
+    <div class="panel-header">
+        <div class="panel-title">Data Analysis</div>
+        <p class="panel-desc">Analisis statistik dan pengelolaan tabel data.</p>
+    </div>
+
+    <div class="tools-grid">
+        <div class="tool-group">
+            <div class="tool-group-label">Template Tabel & Struktur</div>
+            <div class="tool-btns">
+                <button class="btn-outline" onclick="insertTemplateTabel('frekuensi')">Frekuensi</button>
+                <button class="btn-outline" onclick="insertTemplateTabel('distribusi')">Distribusi</button>
+                <button class="btn-outline" onclick="insertTemplateTabel('crosstab')">Cross-tab</button>
+                <button class="btn-outline" onclick="insertTemplateTabel('kuesioner')">Kuesioner</button>
+                <button class="btn-outline" onclick="insertTemplateTabel('rangkuman')">Rangkuman</button>
+            </div>
+        </div>
+        <div class="tool-group">
+            <div class="tool-group-label">Analisis Data</div>
+            <div class="tool-btns">
+                <button class="btn-outline" onclick="analisisRegresi()">Regresi & Korelasi</button>
+                <button class="btn-outline" onclick="interpretasiStatistik()">Interpretasi Bab IV</button>
+            </div>
+        </div>
+        
+        <div class="tool-group" style="margin-top:8px;">
+            <div class="tool-group-label">Validasi Data Input</div>
+            <div class="search-box">
+                <input type="text" id="validation-input" class="text-input" placeholder="Misal: Sangat Setuju, Setuju, Netral, Tidak Setuju">
+                <button class="btn-primary" onclick="terapkanValidasiData()">Terapkan</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+            <div id="presentation-panel" class="hidden mode-panel">
+    <div class="panel-header">
+        <div class="panel-title">Presentation Design</div>
+        <p class="panel-desc">Desain slide otomatis dan persiapan presentasi.</p>
+    </div>
+
+    <div class="tools-grid">
+        <div class="tool-group">
+            <div class="tool-group-label">Terapkan Tema Otomatis</div>
+            <div class="tool-btns">
+                <button class="btn-outline theme-blue" onclick="terapkanTemaSlide('akademik-biru')">Akademik Biru</button>
+                <button class="btn-outline theme-green" onclick="terapkanTemaSlide('akademik-hijau')">Forest Green</button>
+                <button class="btn-outline theme-dark" onclick="terapkanTemaSlide('profesional-gelap')">Dark Pro</button>
+                <button class="btn-outline theme-light" onclick="terapkanTemaSlide('minimalis')">Clean Minimalist</button>
+            </div>
+        </div>
+        
+        <div class="tool-group" style="margin-top:8px;">
+            <div class="tool-group-label">Pembuatan Slide Cerdas</div>
+            <button class="btn-primary" style="width:100%;" onclick="slideFromUploadedFile()">Buat Slide dari Dokumen (Perlu Upload)</button>
+        </div>
+        
+        <!-- Practice Timer -->
+        <div class="tool-group timer-group" style="margin-top:16px;">
+            <div class="tool-group-label">Simulasi Presentasi</div>
+            <div id="timer-display" class="timer-display">10:00</div>
+            <div class="timer-controls">
+                <input type="number" id="timer-minutes-input" value="10" min="1" max="120" class="timer-input" title="Menit">
+                <span class="timer-label">mnt</span>
+                <button id="timer-start-btn" class="btn-primary btn-sm" onclick="startPracticeTimer()">Mulai</button>
+                <button id="timer-stop-btn" class="btn-outline btn-sm" onclick="stopPracticeTimer()" disabled>Jeda</button>
+                <button class="btn-icon-outline" title="Reset" onclick="resetPracticeTimer()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 3v5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+            <div id="templates-panel" class="hidden mode-panel">
+    <div class="panel-header">
+        <div class="panel-title">Template & Citation</div>
+        <p class="panel-desc">Pilih template struktur dokumen atau buat sitasi otomatis.</p>
+    </div>
+    
+    <div class="tool-group">
+        <div class="tool-group-label" style="margin-bottom:8px;">Pilih Template Dokumen</div>
+        <select id="template-select" class="select-input" onchange="if(this.value) applyBuiltinTemplate(this.value); this.value='';">
+            <option value="">-- Pilih Template --</option>
+            <option value="jurnal-indonesia">Jurnal Indonesia (IMRaD + APA)</option>
+            <option value="jurnal-inggris">Journal English (IMRaD + IEEE)</option>
+            <option value="artikel-ilmiah">Artikel Ilmiah (Populer + APA)</option>
+            <option value="skripsi">Skripsi/TA (5 Bab Lengkap)</option>
+            <option value="prosiding">Prosiding (Konferensi Bilingual)</option>
+            <option value="makalah">Makalah (Tugas Kuliah)</option>
+        </select>
+    </div>
+
+    <div class="tool-group" style="margin-top:16px;">
+        <div class="tool-group-label">Sitasi & Daftar Pustaka</div>
+        <textarea id="citation-input" placeholder="Masukkan detail: Penulis, Tahun, Judul, Jurnal, Vol, Hal..." rows="2" class="text-input" style="margin-bottom:8px;"></textarea>
+        <div class="tool-btns">
+            <button class="btn-outline" onclick="insertCitation('APA')">Format APA</button>
+            <button class="btn-outline" onclick="insertCitation('IEEE')">Format IEEE</button>
+            <button class="btn-outline" onclick="insertCitation('Chicago')">Chicago Style</button>
+            <button class="btn-outline" onclick="insertCitation('Vancouver')">Vancouver</button>
+        </div>
+    </div>
+</div>
+
+<div id="history-panel" class="hidden mode-panel">
+    <div class="panel-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div>
+            <div class="panel-title">Riwayat Percakapan</div>
+            <p class="panel-desc">Aktivitas dan sesi Anda sebelumnya.</p>
+        </div>
+        <button class="btn-icon-outline" onclick="clearHistory()" title="Hapus Semua Riwayat">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 6H5H21 M8 6V4C8 3.46957 8.21071 2.96086 8.58579 2.58579C8.96086 2.21071 9.46957 2 10 2H14C14.5304 2 15.0391 2.21071 15.4142 2.58579C15.7893 2.96086 16 3.46957 16 4V6 M19 6V20C19 20.5304 18.7893 21.0391 18.4142 21.4142C18.0391 21.7893 17.5304 22 17 22H7C6.46957 22 5.96086 21.7893 5.58579 21.4142C5.21071 21.0391 5 20.5304 5 20V6H19Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 11V17 M14 11V17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+    </div>
+    <div class="history-list"></div>
+</div>
+
+<div id="settings-panel" class="hidden mode-panel">
+    <div class="panel-header">
+        <div class="panel-title">Pengaturan</div>
+        <p class="panel-desc">Konfigurasi akun dan koneksi API.</p>
+    </div>
+    <div class="tool-group">
+        <label class="tool-group-label" style="display:block; margin-bottom:4px;">Gemini API Key</label>
+        <div class="search-box">
+            <input type="password" id="api-key-input" class="text-input" placeholder="Masukkan Gemini API Key">
+            <button id="save-settings" class="btn-primary">Simpan</button>
+        </div>
+        <p style="font-size:11px; color:var(--text-secondary); margin-top:8px;">Kunci API disimpan secara lokal di perangkat Anda.</p>
+    </div>
+    
+    <div class="tool-group" style="margin-top:16px;">
+        <div class="tool-group-label" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <span>Prompt Presets</span>
+            <button class="btn-icon-outline btn-sm" onclick="saveCurrentAsPreset()" title="Simpan Chat Saat Ini">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 5V19 M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+        </div>
+        <input type="text" id="preset-name-input" class="text-input" placeholder="Nama preset baru (opsional)" style="margin-bottom:8px;">
+        <div id="presets-list"></div>
+    </div>
+</div>
+
+        </div>
+
+        <!-- CHAT & INPUT AREA -->
+        <div class="chat-wrapper">
+            <div class="chat-container" id="chat-container">
+    <div class="message bot-message">
+        <div class="message-content">
+            <strong>AutomateBoty Workspace</strong><br><br>
+            Pilih mode kerja di sidebar, atau langsung mulai mengetik untuk berdiskusi dengan AI asisten Anda.<br>
+            <span style="font-size:12px; color:var(--text-secondary); margin-top: 8px; display: inline-block;">Ketik '/help' atau pilih fitur untuk memulai aktivitas spesifik.</span>
+        </div>
+    </div>
+</div>
+
+<div class="input-area">
+    <input type="file" id="file-upload" style="display:none;" accept="image/*,.txt,.csv,.md,.json,.js,.py,.docx">
+    <button id="upload-btn" title="Upload File" class="icon-btn-sm" onclick="document.getElementById('file-upload').click()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21.44 11.05L12.25 20.24C11.12 21.37 9.6 22 8 22s-3.12-.63-4.24-1.76C2.63 19.11 2 17.59 2 16s.63-3.11 1.76-4.25L12.95 2.56c.75-.75 1.77-1.17 2.83-1.17s2.08.42 2.83 1.17c.75.75 1.17 1.77 1.17 2.83s-.42 2.08-1.17 2.83L9.42 17.41C9.04 17.79 8.53 18 8 18s-1.03-.21-1.41-.59C6.21 17.03 6 16.53 6 16s.21-1.03.59-1.41L15.07 6.1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <textarea id="user-input" placeholder="Tanya AutomateBoty..." rows="1"></textarea>
+    <button id="send-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+</div>
+
+        </div>
+    </main>
+</div>
+
+<!-- ONBOARDING MODAL -->
+<div id="onboarding-modal" class="modal-overlay hidden">
+    <div class="modal-box">
+        <div class="tour-icon">✨</div>
+        <div class="tour-title">Selamat Datang di Workspace!</div>
+        <div class="tour-desc">Antarmuka baru yang lebih bersih dan profesional.</div>
+        <div class="tour-progress">1 / 5</div>
+        <div class="tour-nav">
+            <button class="btn-outline tour-prev" onclick="tourPrev()">← Kembali</button>
+            <button class="btn-primary tour-next" onclick="tourNext()">Lanjut →</button>
+        </div>
+        <button class="modal-close" onclick="closeTour()">✕</button>
+    </div>
+</div>
+
+<script src="ui-extras.js"></script>
+<script src="features-word.js"></script>
+<script src="features-excel.js"></script>
+<script src="features-ppt.js"></script>
+<script src="script.js?v=9"></script>
 </body>
 </html>

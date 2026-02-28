@@ -1,721 +1,512 @@
 /*
- * Gemini AI Office Add-in
- * Logic for handling chat and interacting with Office apps.
+ * AutomateBoty v7 — Core script.js
+ * Integrates: History, Presets, Rating, Bimbingan, Word/Excel/PPT tools
  */
 
-// Core Configuration
-const DEFAULT_API_KEY = "AIzaSyDM4fjZTT1F6Ux2D8anrQMe7SSShKVUgrQ"; // User provided
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+const DEFAULT_API_KEY = "AIzaSyDM4fjZTT1F6Ux2D8anrQMe7SSShKVUgrQ";
+const INVALID_KEYS = ["AIzaSyCmSlRCCPgC1ph4vuco9hwLsTaDtnBPcSA","AIzaSyAmsulrYYqrxuWnlqwrn1UzHsPdTSedyR0"];
 let apiKey = localStorage.getItem("gemini_api_key") || DEFAULT_API_KEY;
+let currentLang = localStorage.getItem("ab_lang") || "ID";
 
-// DOM Elements
+// ── DOM ───────────────────────────────────────────────────────────────────────
 const chatContainer = document.getElementById("chat-container");
-const userInput = document.getElementById("user-input");
-const sendBtn = document.getElementById("send-btn");
-const settingsBtn = document.getElementById("settings-btn");
-const settingsPanel = document.getElementById("settings-panel");
-const apiKeyInput = document.getElementById("api-key-input");
-const saveSettingsBtn = document.getElementById("save-settings");
-let quickActionsContainer = null; // Container for buttons
+const userInput     = document.getElementById("user-input");
+const sendBtn       = document.getElementById("send-btn");
 
-// Initialize Office.js
+// ── OFFICE INIT ───────────────────────────────────────────────────────────────
 Office.onReady((info) => {
-    console.log("Office.js ready. Host:", info.host);
-    
-    // Create UI for Quick Actions
-    setupQuickActions(info.host);
-
-    // Always setup listeners so it works in Browser too for testing
+    const host = info.host;
+    updateHostBadge(host);
+    setupQuickActions(host);
     setupEventListeners();
-    
-    // Check for saved API key
-    // Check for saved API key
-    const currentSavedKey = localStorage.getItem("gemini_api_key");
-    // List of invalid/blocked keys to force clear
-    const INVALID_KEYS = [
-        "AIzaSyCmSlRCCPgC1ph4vuco9hwLsTaDtnBPcSA",
-        "AIzaSyAmsulrYYqrxuWnlqwrn1UzHsPdTSedyR0" // Blocked key
-    ];
+    showHostTools(host);
 
-    if (currentSavedKey && !INVALID_KEYS.includes(currentSavedKey)) {
-        apiKeyInput.value = currentSavedKey;
-        apiKey = currentSavedKey;
-    } else {
-        // If no key, or we found an invalid key, reset to new default
-        if (INVALID_KEYS.includes(currentSavedKey)) {
-            console.log("Removing invalid API key from storage");
-            localStorage.removeItem("gemini_api_key");
-        }
-        apiKeyInput.value = DEFAULT_API_KEY;
-        apiKey = DEFAULT_API_KEY;
-    }
+    // API Key
+    const saved = localStorage.getItem("gemini_api_key");
+    const apiInput = document.getElementById("api-key-input");
+    if (saved && !INVALID_KEYS.includes(saved)) { apiInput.value = saved; apiKey = saved; }
+    else { if (INVALID_KEYS.includes(saved)) localStorage.removeItem("gemini_api_key"); apiInput.value = DEFAULT_API_KEY; apiKey = DEFAULT_API_KEY; }
 
-    // Network Status Check
+    // Language
+    document.getElementById("lang-toggle-btn").textContent = currentLang === "ID" ? "🇮🇩" : "🇬🇧";
+
+    // Network
     updateNetworkStatus();
-    window.addEventListener('online', updateNetworkStatus);
-    window.addEventListener('offline', updateNetworkStatus);
-    
-    // Add version indicator
-    const versionDiv = document.createElement("div");
-    versionDiv.style.fontSize = "10px";
-    versionDiv.style.color = "#888";
-    versionDiv.style.textAlign = "center";
-    versionDiv.style.marginTop = "5px";
-    versionDiv.innerText = "v5.0 - Gemini Flash Latest";
-    document.querySelector(".app-container").appendChild(versionDiv);
-    console.log("Gemini Add-in v5 loaded");
+    window.addEventListener("online",  updateNetworkStatus);
+    window.addEventListener("offline", updateNetworkStatus);
+
+    // Init ui-extras
+    if (typeof setupExtraPanels === "function") setupExtraPanels();
+
+    // Version
+    const v = document.createElement("div");
+    v.className = "version-info";
+    v.textContent = "v7.0 · AutomateBoty · 17 Fitur Baru";
+    document.querySelector(".app-container").appendChild(v);
 });
+
+function updateHostBadge(host) {
+    const badge = document.getElementById("host-badge");
+    if (!badge) return;
+    if (!host)                                  { badge.textContent = "Browser"; }
+    else if (host === Office.HostType.Word)     { badge.textContent = "Word";  badge.className = "host-badge word"; }
+    else if (host === Office.HostType.Excel)    { badge.textContent = "Excel"; badge.className = "host-badge excel"; }
+    else if (host === Office.HostType.PowerPoint){ badge.textContent = "PPT";  badge.className = "host-badge ppt"; }
+}
+
+function showHostTools(host) {
+    let initialMode = "chat";
+    if (host === Office.HostType.Word) initialMode = "academic";
+    else if (host === Office.HostType.Excel) initialMode = "data";
+    else if (host === Office.HostType.PowerPoint) initialMode = "presentation";
+    
+    if (typeof switchMode === "function") switchMode(initialMode);
+}
+
+window.switchMode = function(mode) {
+    // Hide all mode panels
+    document.querySelectorAll(".mode-panel").forEach(p => p.classList.add("hidden"));
+    // Disable active state
+    document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+    
+    // Activate target
+    const panel = document.getElementById(mode + "-panel");
+    const btn = document.getElementById("nav-" + mode);
+    
+    if (panel) panel.classList.remove("hidden");
+    if (btn) btn.classList.add("active");
+    
+    // Triggers
+    if (mode === "history" && typeof renderHistory === "function") renderHistory();
+    if (mode === "settings" && typeof renderPresets === "function") renderPresets();
+};
 
 function updateNetworkStatus() {
     if (!navigator.onLine) {
-        addBotMessage("⚠️ **No Internet Connection**\nI need an internet connection to talk to Gemini AI. Please check your network.");
+        addBotMessage("⚠️ **Tidak Ada Koneksi**\nSaya butuh internet untuk terhubung ke Gemini AI.");
         sendBtn.disabled = true;
-    } else {
-        sendBtn.disabled = false;
-    }
+    } else { sendBtn.disabled = false; }
 }
 
+// ── EVENT LISTENERS ───────────────────────────────────────────────────────────
 function setupEventListeners() {
-    // Send Message Logic
     sendBtn.addEventListener("click", handleSendMessage);
     userInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            handleSendMessage();
-        }
+        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }
     });
-
-    // Auto-resize textarea
     userInput.addEventListener("input", function() {
         this.style.height = "auto";
-        this.style.height = (this.scrollHeight) + "px";
-        if (this.value === "") this.style.height = "auto";
+        this.style.height = Math.min(this.scrollHeight, 90) + "px";
     });
 
-    // Settings Toggle
-    settingsBtn.addEventListener("click", () => {
-        settingsPanel.classList.toggle("hidden");
-    });
+    // Settings
+    // Settings Input Save
+    const saveBtn = document.getElementById("save-settings");
+    if (saveBtn) {
+        saveBtn.addEventListener("click", () => {
+            const k = document.getElementById("api-key-input").value.trim();
+            if (k) { 
+                apiKey = k; 
+                localStorage.setItem("gemini_api_key", k); 
+                showToast("✅ API Key disimpan"); 
+            }
+        });
+    }
 
-    // Save Settings
-    saveSettingsBtn.addEventListener("click", () => {
-        const newKey = apiKeyInput.value.trim();
-        if (newKey) {
-            apiKey = newKey;
-            localStorage.setItem("gemini_api_key", apiKey);
-            settingsPanel.classList.add("hidden");
-            addBotMessage("API Key updated successfully.");
-        }
-    });
+    // Main menu toggle (simulate lang toggle functionality or settings)
+    const menuBtn = document.getElementById("menu-btn");
+    if (menuBtn) {
+        menuBtn.addEventListener("click", () => {
+            currentLang = currentLang === "ID" ? "EN" : "ID";
+            localStorage.setItem("ab_lang", currentLang);
+            showToast(currentLang === "ID" ? "🇮🇩 Mode Indonesia aktif" : "🇬🇧 English mode active");
+        });
+    }
 
-    // File Upload Handlers (New)
+    // File upload
     const uploadBtn = document.getElementById("upload-btn");
     const fileInput = document.getElementById("file-upload");
-
     if (uploadBtn && fileInput) {
         uploadBtn.addEventListener("click", () => fileInput.click());
-        
         fileInput.addEventListener("change", (e) => {
             const file = e.target.files[0];
-            if (file) {
-                 // Show pill or indicator
-                 let previewText = `📎 ${file.name} selected`;
-                 // Just append to input as a visual cue? 
-                 // Or better, store it in a global variable
-                 window.currentFile = file;
-                 
-                 // Add visual indicator near input
-                 const existingIndicator = document.getElementById("file-indicator");
-                 if(existingIndicator) existingIndicator.remove();
-                 
-                 // Style the indicator
-                 const indicator = document.createElement("div");
-                 indicator.id = "file-indicator";
-                 indicator.style.display = "flex";
-                 indicator.style.alignItems = "center";
-                 indicator.style.justifyContent = "space-between";
-                 indicator.style.padding = "8px 16px";
-                 indicator.style.backgroundColor = "#e0e7ff";
-                 indicator.style.borderTop = "1px solid #c7d2fe";
-                 indicator.style.fontSize = "12px";
-                 indicator.style.color = "#333";
-                 indicator.style.marginBottom = "0"; 
-                 
-                 indicator.innerHTML = `
-                    <span style="display:flex; align-items:center; gap:6px;">
-                        <span>📎</span> 
-                        <strong>${file.name}</strong> 
-                        <span style="opacity:0.7">selected</span>
-                    </span>
-                    <button id="remove-file-btn" style="background:none; border:none; cursor:pointer; color:#ef4444; font-weight:bold; padding:4px;">✕</button>
-                 `;
-                 
-                 // Insert ABOVE the input area (in app-container, before input-area)
-                 const appContainer = document.querySelector(".app-container");
-                 const inputArea = document.querySelector(".input-area");
-                 appContainer.insertBefore(indicator, inputArea);
-
-                 // Add handler for remove button
-                 document.getElementById("remove-file-btn").addEventListener("click", () => {
-                     window.currentFile = null;
-                     indicator.remove();
-                     fileInput.value = "";
-                 });
-                 
-                 // If it's an image, read strictly for base64 now
-                 // Implementation in handleSendMessage will read it.
-            }
+            if (!file) return;
+            window.currentFile = file;
+            const ex = document.getElementById("file-indicator");
+            if (ex) ex.remove();
+            const ind = document.createElement("div");
+            ind.id = "file-indicator";
+            ind.innerHTML = `<span>📎 <strong>${file.name}</strong></span><button id="remove-file-btn" style="background:none;border:none;cursor:pointer;color:#ef4444;font-weight:bold;">✕</button>`;
+            document.querySelector(".input-area").parentElement.insertBefore(ind, document.querySelector(".input-area"));
+            document.getElementById("remove-file-btn").addEventListener("click", () => { window.currentFile = null; ind.remove(); fileInput.value = ""; });
         });
     }
 }
 
-async function handleSendMessage(autoSend = false) {
+// ── MESSAGE HANDLING ──────────────────────────────────────────────────────────
+async function handleSendMessage() {
     const text = userInput.value.trim();
     if (!text) return;
-
-    // 1. Display User Message
     addUserMessage(text);
     userInput.value = "";
     userInput.style.height = "auto";
     sendBtn.disabled = true;
 
-    // 2. Call Gemini API
     try {
         const loadingId = addLoadingMessage();
-        console.log("Calling Gemini API...");
-        const responseText = await callGeminiAPI(text);
-        
-        // 3. Remove Loading & Display Bot Response
+        const response = await callGeminiAPI(text);
         removeMessage(loadingId);
-        addBotMessage(responseText, true); // true = enable actions
-        
-        // 4. AUTO-INSERT (The "Powerful" Feature)
-        // We only auto-insert if it successfully generated and isn't an error message
-        if (responseText && !responseText.startsWith("❌") && !responseText.includes("Api Error")) {
-             insertIntoDocument(responseText); 
-             // We also show a small toast or log?
-             console.log("Auto-inserted content.");
-        }
+        const msgId = "msg-" + Date.now();
+        addBotMessage(response, msgId);
+        if (response && !response.startsWith("❌")) insertIntoDocument(response);
 
-    } catch (error) {
-        console.error("Full Error Object:", error);
-        removeMessage("loading-msg"); // Ensure loading is removed
-        // Show the actual error message to the user for debugging
-        addBotMessage(`❌ **Error**: ${error.message}\n\nPlease check your internet connection or API Key.`);
+        // Save to history
+        if (typeof saveToHistory === "function") saveToHistory(text, response);
+        // Cache for offline
+        if (typeof cacheOffline === "function") cacheOffline("last_response", { q: text, a: response });
+    } catch (err) {
+        removeMessage("loading-msg");
+        addBotMessage(`❌ **Error**: ${err.message}\n\nPeriksa koneksi atau API Key.`);
     } finally {
-        // Clear file upload state
         window.currentFile = null;
-        const indicator = document.getElementById("file-indicator");
-        if(indicator) indicator.remove();
-        if(document.getElementById("file-upload")) document.getElementById("file-upload").value = "";
-        
+        const ind = document.getElementById("file-indicator");
+        if (ind) ind.remove();
+        const fi = document.getElementById("file-upload");
+        if (fi) fi.value = "";
         sendBtn.disabled = false;
         userInput.focus();
     }
 }
 
+// ── GEMINI API ────────────────────────────────────────────────────────────────
 async function callGeminiAPI(prompt) {
-    if (!apiKey) {
-        throw new Error("API Key is missing. Please check settings.");
-    }
-    
-    // Check if we are online before fetching
+    if (!apiKey) throw new Error("API Key kosong. Buka Settings ⚙️");
+
+    // Offline fallback
     if (!navigator.onLine) {
-        throw new Error("No Internet connection.");
+        if (typeof getOfflineCache === "function") {
+            const cached = getOfflineCache("last_response");
+            if (cached) return `*(Mode Offline — jawaban dari cache)*\n\n${cached.a}`;
+        }
+        throw new Error("Tidak ada koneksi internet.");
     }
 
-    // Use v1beta and gemini-flash-latest (Aliases to best available flash model)
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
-    
-    // Dynamic System Context based on Host
-    let systemRole = "You are a helpful assistant.";
-    const host = Office.context.host;
-    
-    if (host === Office.HostType.Word) {
-        systemRole = "You are an expert academic writer and editor. Generate high-quality, professional, and detailed content suitable for Thesis (Skripsi), Journals, and formal documents. Use strictly formatted Markdown (headers, lists, bold). Do NOT chat. DIRECTLY output the document content requested.";
-    } else if (host === Office.HostType.Excel) {
-        systemRole = "You are an Excel Expert. If asked for a formula, output ONLY the formula starting with =. If asked for data, output a clean CSV format (comma separated) or a Markdown Table. Do NOT include conversational filler.";
-    } else if (host === Office.HostType.PowerPoint) {
-        systemRole = "You are a Presentation Expert. If asked for multiple slides, output a JSON Array: [{\"title\": \"Title\", \"points\": [\"Bullet1\", \"Bullet2\"]}]. If asked for one slide, output regular text: TITLE: [Title]\n- Points. Do NOT use Markdown.";
-    }
+    const systemRole = buildSystemPrompt(Office.context.host, currentLang);
 
-    // 0. Get Document Context (Read text from file)
+    // Bimbingan mode prefix
+    const bimbinganPrefix = typeof getBimbinganPrefix === "function" ? getBimbinganPrefix() : "";
+
     let docContext = "";
-    try {
-        docContext = await getDocumentContext();
-    } catch (e) {
-        console.log("Could not read document context:", e);
-    }
-    
-    // 0b. Process User Uploaded File (if any)
-    let filePart = null;
-    let fileTextContent = "";
-    
+    try { docContext = await getDocumentContext(); } catch {}
+
+    let filePart = null, fileText = "";
     if (window.currentFile) {
         const file = window.currentFile;
-        console.log("Processing uploaded file:", file.name, file.type);
-        
         if (file.type.startsWith("image/")) {
-            // Convert to Base64 for Inline Data
-            const base64Data = await new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                    // result is data:image/jpeg;base64,....
-                    const content = reader.result.toString().split(',')[1];
-                    resolve(content);
-                };
-                reader.readAsDataURL(file);
-            });
-            
-            filePart = {
-                inlineData: {
-                    mimeType: file.type,
-                    data: base64Data
-                }
-            };
+            const b64 = await fileToBase64(file);
+            filePart = { inlineData: { mimeType: file.type, data: b64 } };
         } else {
-            // Assume text-based (txt, csv, md, json, js, etc)
-            fileTextContent = await new Promise((resolve) => {
-                 const reader = new FileReader();
-                 reader.onload = (e) => resolve(e.target.result);
-                 reader.readAsText(file);
-            });
-            fileTextContent = `\n\n[Attached File: ${file.name}]\n${fileTextContent}\n[End Attached File]\n`;
+            fileText = await fileToText(file);
+            fileText = `\n\n[File: ${file.name}]\n${fileText.substring(0, 6000)}\n[/File]\n`;
         }
-        
-        // Clear file after processing? or keep until sent?
-        // Let's clear visual indicator and var after successful send (in handleSendMessage), 
-        // but for now we just prepare the payload.
     }
 
-    // Construct Parts
-    const textPart = { text: systemRole + "\n\nDocument Context:\n" + docContext + fileTextContent + "\n\nUser Request: " + prompt };
-    const partsVal = filePart ? [textPart, filePart] : [textPart];
+    const fullPrompt = bimbinganPrefix + systemRole + "\n\nKonteks:\n" + docContext + fileText + "\n\nPermintaan: " + prompt;
+    const textPart = { text: fullPrompt };
+    const parts = filePart ? [textPart, filePart] : [textPart];
+    const payload = { contents: [{ role: "user", parts }] };
 
-    const payload = {
-        contents: [{
-            role: "user",
-            parts: partsVal
-        }]
-    };
-
-    console.log("Sending fetch request to Gemini with payload parts:", partsVal.length);
-    const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-    });
-
-    console.log("Response status:", response.status);
-
-    if (!response.ok) {
-        const errText = await response.text();
-        console.error("API Error Response:", errText);
-        throw new Error(`API Error (${response.status}): ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    console.log("API Data received:", data);
-    
-    // Clear file selection after successful call setup (actually better to clear in handleSendMessage)
-    
-    if (!data.candidates || data.candidates.length === 0) {
-        return "I received an empty response from Gemini.";
-    }
-
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || "No response generated.";
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    if (!res.ok) { const err = await res.text(); throw new Error(`API Error (${res.status}): ${err.substring(0,200)}`); }
+    const data = await res.json();
+    if (!data.candidates?.length) return "Gemini tidak menghasilkan respons.";
+    return data.candidates[0]?.content?.parts?.[0]?.text || "Tidak ada respons.";
 }
 
+function buildSystemPrompt(host, lang) {
+    const isEN = lang === "EN";
+    if (host === Office.HostType.Word) {
+        return isEN
+            ? `You are an expert academic writer. Rules: 1) Use Markdown. 2) English text ALWAYS in *italic*. 3) For journals: Title, Abstract (EN+ID), Introduction, Literature Review, Methodology, Results & Discussion, Conclusion, References (IEEE). 4) Citations: IEEE format. 5) Output ONLY document content.`
+            : `Kamu adalah penulis akademis ahli. Aturan: 1) Gunakan Markdown. 2) Teks Inggris SELALU *italic*. 3) Untuk jurnal: Judul, Abstrak (ID+EN), Pendahuluan, Tinjauan Pustaka, Metodologi, Hasil & Pembahasan, Kesimpulan, Daftar Pustaka (APA). 4) Sitasi: format APA. 5) Output HANYA konten dokumen.`;
+    } else if (host === Office.HostType.Excel) {
+        return `Kamu adalah Excel Expert. Aturan: 1) Formula: output HANYA rumus dimulai =. 2) Data/tabel: CSV atau Markdown table. 3) Statistik: hitung N,Mean,Median,StdDev,Min,Max,Range dalam format tabel. 4) Interpretasi: narasi profesional. 5) Tanpa filler.`;
+    } else if (host === Office.HostType.PowerPoint) {
+        return `Kamu adalah Presentation Expert. Aturan: 1) Multi-slide: JSON Array [{"title":"...","points":["..."],"notes":"..."}]. 2) Single: TITLE:[Judul]\\n- Poin. 3) Notes: 2-3 kalimat informatif per slide. 4) Tanpa Markdown.`;
+    }
+    return "Kamu adalah asisten AI yang membantu mahasiswa. Jawab dengan ringkas dan akurat dalam Bahasa Indonesia.";
+}
+
+// ── DOCUMENT CONTEXT ──────────────────────────────────────────────────────────
 async function getDocumentContext() {
-    // Attempt to read selection or body text
     return new Promise((resolve) => {
-        if (Office.context.host === Office.HostType.Word) {
-            Word.run(async (context) => {
-                const selection = context.document.getSelection();
-                selection.load("text");
-                await context.sync();
-                if (selection.text && selection.text.trim().length > 0) {
-                     resolve(selection.text);
-                } else {
-                     // If selection empty, read body (first 2000 chars to avoid overload)
-                     const body = context.document.body;
-                     body.load("text");
-                     await context.sync();
-                     resolve(body.text.substring(0, 5000)); // Read up to 5k chars
-                }
+        const host = Office.context.host;
+        if (host === Office.HostType.Word) {
+            Word.run(async (ctx) => {
+                const sel = ctx.document.getSelection(); sel.load("text"); await ctx.sync();
+                if (sel.text?.trim()) return resolve(sel.text);
+                const body = ctx.document.body; body.load("text"); await ctx.sync();
+                resolve(body.text.substring(0, 5000));
             }).catch(() => resolve(""));
-        } else if (Office.context.host === Office.HostType.Excel) {
-             Excel.run(async (context) => {
-                 const range = context.workbook.getSelectedRange();
-                 range.load("text");
-                 await context.sync();
-                 // range.text is a 2D array
-                 const textStr = range.text.map(row => row.join(", ")).join("\n");
-                 resolve(textStr);
-             }).catch(() => resolve(""));
+        } else if (host === Office.HostType.Excel) {
+            Excel.run(async (ctx) => {
+                const range = ctx.workbook.getSelectedRange(); range.load("text"); await ctx.sync();
+                resolve(range.text.map(r => r.join(", ")).join("\n"));
+            }).catch(() => resolve(""));
         } else {
-            // PowerPoint or others: Use generic getSelectedData
-             Office.context.document.getSelectedDataAsync(Office.CoercionType.Text, (result) => {
-                 if (result.status === Office.AsyncResultStatus.Succeeded) {
-                     resolve(result.value);
-                 } else {
-                     resolve("");
-                 }
-             });
+            Office.context.document.getSelectedDataAsync(Office.CoercionType.Text, (res) => resolve(res.status === Office.AsyncResultStatus.Succeeded ? res.value : ""));
         }
     });
 }
 
-// UI Helpers
+function fileToBase64(file) {
+    return new Promise((resolve) => { const r = new FileReader(); r.onloadend = () => resolve(r.result.split(",")[1]); r.readAsDataURL(file); });
+}
+function fileToText(file) {
+    return new Promise((resolve) => { const r = new FileReader(); r.onload = (e) => resolve(e.target.result); r.readAsText(file); });
+}
+
+// ── UI HELPERS ────────────────────────────────────────────────────────────────
 function addUserMessage(text) {
     const div = document.createElement("div");
     div.className = "message user-message";
-    div.innerHTML = `<div class="message-content">${escapeHtml(text).replace(/\n/g, "<br>")}</div>`;
-    chatContainer.appendChild(div);
-    scrollToBottom();
+    div.innerHTML = `<div class="message-content">${escapeHtml(text).replace(/\n/g,"<br>")}</div>`;
+    chatContainer.appendChild(div); scrollToBottom();
 }
 
 function addLoadingMessage() {
     const id = "loading-" + Date.now();
-    const div = document.createElement("div");
-    div.id = id;
-    div.className = "message bot-message";
-    div.innerHTML = `<div class="message-content">Thinking...</div>`;
-    chatContainer.appendChild(div);
-    scrollToBottom();
-    return id;
+    const div = document.createElement("div"); div.id = id; div.className = "message bot-message";
+    div.innerHTML = `<div class="message-content"><span style="animation:fadeIn 1s infinite"></span> Memproses...</div>`;
+    chatContainer.appendChild(div); scrollToBottom(); return id;
 }
 
-function removeMessage(id) {
-    const el = document.getElementById(id);
-    if (el) el.remove();
-}
+function removeMessage(id) { const el = document.getElementById(id); if (el) el.remove(); }
 
-function addBotMessage(text, withActions = false) {
+function addBotMessage(text, msgId) {
     const div = document.createElement("div");
     div.className = "message bot-message";
-    
-    // Parse Markdown
-    const htmlContent = marked.parse(text);
-    
-    div.innerHTML = `
-        <div class="message-content">${htmlContent}</div>
-    `;
-    
-    // Highlight code blocks
-    div.querySelectorAll('pre code').forEach((block) => {
-        hljs.highlightElement(block);
-    });
+    if (msgId) div.id = msgId;
+    div.innerHTML = `<div class="message-content">${marked.parse(text)}</div>`;
+    div.querySelectorAll("pre code").forEach((b) => hljs.highlightElement(b));
 
-    chatContainer.appendChild(div);
-    scrollToBottom();
+    // Add rating buttons
+    if (typeof addRatingButtons === "function" && msgId) addRatingButtons(div, msgId);
+
+    chatContainer.appendChild(div); scrollToBottom();
 }
 
-function scrollToBottom() {
-    chatContainer.scrollTop = chatContainer.scrollHeight;
+function scrollToBottom() { chatContainer.scrollTop = chatContainer.scrollHeight; }
+
+function escapeHtml(t) { return t.replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m])); }
+
+function showToast(msg) {
+    const t = document.createElement("div"); t.className = "toast"; t.textContent = msg;
+    document.body.appendChild(t); setTimeout(() => t.remove(), 2300);
 }
 
-function escapeHtml(text) {
-    const map = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#039;'
-    };
-    return text.replace(/[&<>"']/g, (m) => map[m]);
-}
-
-// Office Interaction Logic
-window.insertTextFromMessage = function(btn) {
-    // Traverse up to find the message content
-    const messageContent = btn.parentElement.previousElementSibling.innerText;
-    insertIntoDocument(messageContent);
-};
-
+// ── QUICK ACTIONS ─────────────────────────────────────────────────────────────
 function setupQuickActions(host) {
-    // Insert Quick Actions div before the chat container
-    quickActionsContainer = document.createElement("div");
-    quickActionsContainer.className = "quick-actions";
-    
-    // Define Actions based on Host
+    const container = document.createElement("div");
+    container.className = "quick-actions";
     let actions = [];
-    
-    // default actions if browser/unknown
-    actions = [
-        { label: "Summarize", prompt: "Summarize this document concisely." },
-        { label: "Fix Grammar", prompt: "Check grammar and style." }
-    ];
 
     if (host === Office.HostType.Word) {
         actions = [
-            { label: "Buat Skripsi", prompt: "Buatkan kerangka Bab 1 Skripsi tentang {topic}. Struktur lengkap dengan 5 Bab." },
-            { label: "Buat Jurnal", prompt: "Buatkan abstrak (Bahasa Indonesia dan Bahasa Inggris) dan pendahuluan jurnal akademik tentang {topic}." },
-            { label: "Buat Abstrak (2 Bhs)", prompt: "Buatkan dua versi abstrak (Bahasa Indonesia dan Bahasa Inggris) untuk karya tulis ilmiah tentang {topic}." },
-            { label: "Ke B.Inggris", prompt: "Translate teks yang dipilih ke Bahasa Inggris akademik." },
-            { label: "Ke B.Indo", prompt: "Translate teks yang dipilih ke Bahasa Indonesia baku." },
-            { label: "Tulis Ulang", prompt: "Tulis ulang teks ini agar lebih profesional, ringkas, dan berimpact." },
-            { label: "Cek Grammar", prompt: "Perbaiki tata bahasa dan ejaan teks yang dipilih." }
+            { label: "📄 Jurnal ID",     prompt: "Buatkan jurnal ilmiah lengkap Bahasa Indonesia tentang {topic}. Sertakan Judul, Abstrak (ID+EN), Pendahuluan, Tinjauan Pustaka, Metodologi, Hasil & Pembahasan, Kesimpulan, Daftar Pustaka APA. Teks Inggris ditulis italic." },
+            { label: "📜 Journal EN",    prompt: "Write a complete English academic journal about {topic}. Include Title, Abstract (EN+ID), Introduction, Literature Review, Methodology, Results, Conclusion, References (IEEE). English text in italic." },
+            { label: "✂️ Parafrase",    prompt: "PARAFRASE" },
+            { label: "🔍 Proofreading", prompt: "PROOFREADING" },
+            { label: "📐 Outline",      prompt: "OUTLINE" },
+            { label: "🎓 Bimbingan",    prompt: "BIMBINGAN" },
+            { label: "🔖 Sitasi APA",   prompt: "Buatkan daftar pustaka format APA untuk: {topic}" },
+            { label: "🔖 Sitasi IEEE",  prompt: "Buatkan referensi format IEEE untuk: {topic}" },
+            { label: "🌐 Ke Inggris",   prompt: "Translate teks yang dipilih ke Bahasa Inggris akademik. Hasil ditulis italic." },
+            { label: "🇮🇩 Ke Indo",     prompt: "Terjemahkan teks terpilih ke Bahasa Indonesia baku dan formal." },
+            { label: "✅ Grammar",       prompt: "Perbaiki tata bahasa, ejaan, dan gaya penulisan teks yang dipilih." },
+            { label: "📋 Abstrak 2Bhs", prompt: "Buatkan abstrak Bahasa Indonesia dan Bahasa Inggris (italic) untuk {topic}. 150-250 kata + kata kunci." },
         ];
     } else if (host === Office.HostType.Excel) {
         actions = [
-            { label: "Bikin Rumus", prompt: "Buatkan rumus Excel untuk: " },
-            { label: "Bikin Tabel", prompt: "Buatkan tabel dataset dummy untuk: " },
-            { label: "Analisa Data", prompt: "Analisa data yang dipilih dan berikan insight: " },
-            { label: "Format", prompt: "Berikan aturan Conditional Formatting untuk: " },
-            { label: "Buat Grafik", prompt: "Buatkan grafik dari data yang dipilih." }
+            { label: "🧮 Rumus",          prompt: "Buatkan rumus Excel untuk: " },
+            { label: "📊 Statistik",       prompt: "Hitung N, Mean, Median, Std Dev, Min, Max, Range dari data terpilih. Format tabel." },
+            { label: "📈 Regresi",         prompt: "REGRESI" },
+            { label: "📝 Interpretasi",    prompt: "INTERPRETASI" },
+            { label: "📋 Tabel Frekuensi", prompt: "TABEL:frekuensi" },
+            { label: "📋 Tabel Kuesioner", prompt: "TABEL:kuesioner" },
+            { label: "🔍 Outlier",         prompt: "Analisis data terpilih: identifikasi outlier dan anomali. Berikan rekomendasi." },
+            { label: "📝 Laporan",         prompt: "Buat narasi laporan singkat profesional dari data terpilih." },
+            { label: "📈 Grafik",          prompt: "Buatkan grafik dari data terpilih." },
+            { label: "🧹 Cek Kosong",      prompt: "Analisis data terpilih: temukan sel kosong, duplikat, format tidak konsisten." },
         ];
     } else if (host === Office.HostType.PowerPoint) {
         actions = [
-            { label: "Perbaiki Teks", prompt: "Perbaiki grammar dan profesionalitas teks ini: " },
-            { label: "Translate Slide", prompt: "Translate teks ini ke Bahasa Indonesia: " },
-            { label: "Slide Baru", prompt: "Buatkan konten slide tentang: " },
-            { label: "Outline PPT", prompt: "Buatkan outline presentasi 10 slide tentang: " }
+            { label: "🎯 PPT dari File",   prompt: "SLIDE_FROM_FILE" },
+            { label: "📑 Outline 10 Slide",prompt: "Buatkan outline presentasi 10 slide dengan speaker notes tentang {topic}. Format JSON Array." },
+            { label: "🎤 Slide + Notes",   prompt: "Buatkan slide presentasi dengan catatan pembicara tentang {topic}. Format JSON Array." },
+            { label: "🎤 Timer Latihan",  prompt: "TIMER" },
+            { label: "🌐 Translate Slide", prompt: "Translate konten slide ini ke Bahasa Indonesia: " },
+            { label: "✨ Perbaiki Teks",   prompt: "Perbaiki grammar dan profesionalitas teks slide ini: " },
+        ];
+    } else {
+        actions = [
+            { label: "📝 Rangkum", prompt: "Rangkum ini secara singkat." },
+            { label: "✅ Grammar", prompt: "Cek tata bahasa dan gaya penulisan." },
         ];
     }
 
-    // Render Buttons
-    actions.forEach(action => {
+    actions.forEach((action) => {
         const btn = document.createElement("button");
         btn.className = "action-pill";
-        btn.innerText = action.label;
-        btn.onclick = () => {
-             // If prompt needs input (ends with :) or placeholder {topic}, put in input box
-             if (action.prompt.includes("{topic}") || action.prompt.endsWith(": ")) {
-                 const currentInput = userInput.value;
-                 let newText = action.prompt;
-                 if (currentInput) {
-                     // If user typed something, replace {topic} or append
-                     if(newText.includes("{topic}")) newText = newText.replace("{topic}", currentInput);
-                     else newText = newText + currentInput;
-                     
-                     userInput.value = newText;
-                     handleSendMessage(true); // Auto send if we combined it
-                 } else {
-                     // Just prep the prompt for them to fill in
-                     userInput.value = action.prompt.replace("{topic}", "[TOPIC]");
-                     userInput.focus();
-                 }
-             } else {
-                 // Direct action (e.g. Fix Grammar of selection)
-                 userInput.value = action.prompt;
-                 handleSendMessage(true);
-             }
-        };
-        quickActionsContainer.appendChild(btn);
+        btn.textContent = action.label;
+        btn.onclick = () => handleActionPill(action.prompt);
+        container.appendChild(btn);
     });
 
-    const appContainer = document.querySelector(".app-container");
-    const chatContainer = document.getElementById("chat-container");
-    appContainer.insertBefore(quickActionsContainer, chatContainer.nextSibling); // Insert above input area? No, above chat input? 
-    // Let's put it ABOVE the input area (footer)
     const inputArea = document.querySelector(".input-area");
-    appContainer.insertBefore(quickActionsContainer, inputArea);
+    inputArea.parentElement.insertBefore(container, inputArea);
 }
 
-window.copyToClipboard = function(btn) {
-    const messageContent = btn.parentElement.previousElementSibling.innerText;
-    navigator.clipboard.writeText(messageContent).then(() => {
-        const originalText = btn.innerText;
-        btn.innerText = "Copied!";
-        setTimeout(() => btn.innerText = originalText, 2000);
-    });
-};
+function handleActionPill(prompt) {
+    // Special commands
+    if (prompt === "PARAFRASE")     { const p = document.getElementById("word-tools-panel"); if(p){p.classList.remove("hidden"); document.getElementById("host-tools-btn")?.classList.add("active");} showToast("Pilih teks lalu klik level parafrase di Word Tools ✍️"); return; }
+    if (prompt === "PROOFREADING")  { proofreadingMendalam(); return; }
+    if (prompt === "OUTLINE")       { openOutlineBuilder(); const p = document.getElementById("word-tools-panel"); if(p) p.classList.remove("hidden"); return; }
+    if (prompt === "BIMBINGAN")     { toggleBimbinganSkripsi(); return; }
+    if (prompt === "REGRESI")       { analisisRegresi(); return; }
+    if (prompt === "INTERPRETASI")  { interpretasiStatistik(); return; }
+    if (prompt === "SLIDE_FROM_FILE") { slideFromUploadedFile(); return; }
+    if (prompt === "TIMER")         { const p = document.getElementById("ppt-tools-panel"); if(p) p.classList.remove("hidden"); showToast("Timer ada di PPT Tools 🎤"); return; }
+    if (prompt.startsWith("TABEL:"))  { insertTemplateTabel(prompt.split(":")[1]); return; }
 
-function insertIntoDocument(text) {
-    // Generic insertion logic
-    
-    if (Office.context.host === Office.HostType.Word) {
-        // Word: Convert Markdown to HTML
-        const htmlContent = marked.parse(text);
-        Office.context.document.setSelectedDataAsync(htmlContent, { coercionType: Office.CoercionType.Html }, (asyncResult) => {
-             if (asyncResult.status === Office.AsyncResultStatus.Failed) {
-                 console.error("Action failed: " + asyncResult.error.message);
-                 // Fallback to text if HTML fails
-                 Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text });
-             }
-        });
-
-    } else if (Office.context.host === Office.HostType.Excel) {
-        // Excel: Check for Chart/Grafik keyword
-        if (text.toLowerCase().includes("chart") || text.toLowerCase().includes("grafik")) {
-             runExcelChartGen(text);
-        } else {
-             // Else data/table or formula
-             runExcelDataGen(text);
-        }
-
+    const curr = userInput.value.trim();
+    if (prompt.includes("{topic}")) {
+        if (curr) { userInput.value = prompt.replace("{topic}", curr); handleSendMessage(); }
+        else { userInput.value = prompt.replace("{topic}", "[TOPIK]"); userInput.focus(); }
+    } else if (prompt.endsWith(": ")) {
+        if (curr) { userInput.value = prompt + curr; handleSendMessage(); }
+        else { userInput.value = prompt; userInput.focus(); }
     } else {
-        // PowerPoint
-        // 1. Try to Insert as Text (if a text box is selected)
-        Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text }, (asyncResult) => {
-             if (asyncResult.status === Office.AsyncResultStatus.Failed) {
-                 // 2. If Failed (likely no selection), Create a New Slide
-                 console.log("Insertion failed (maybe no selection?), trying to create slide instead.");
-                 runPowerPointSlideGen(text);
-             } else {
-                 console.log("Text inserted into selected shape.");
-             }
+        userInput.value = prompt; handleSendMessage();
+    }
+}
+
+// ── INSERT INTO DOCUMENT ──────────────────────────────────────────────────────
+function insertIntoDocument(text) {
+    const host = Office.context.host;
+    if (host === Office.HostType.Word) {
+        const html = marked.parse(text);
+        Office.context.document.setSelectedDataAsync(html, { coercionType: Office.CoercionType.Html }, (res) => {
+            if (res.status === Office.AsyncResultStatus.Failed)
+                Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text });
+        });
+    } else if (host === Office.HostType.Excel) {
+        const low = text.toLowerCase();
+        if (low.includes("chart") || low.includes("grafik")) runExcelChartGen(text);
+        else if (low.includes("statistik") || low.includes("mean") || low.includes("median") || low.includes("regresi")) runExcelStatInsert(text);
+        else runExcelDataGen(text);
+    } else if (host === Office.HostType.PowerPoint) {
+        Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text }, (res) => {
+            if (res.status === Office.AsyncResultStatus.Failed) runPowerPointSlideGen(text);
         });
     }
 }
 
+// ── EXCEL CORE HANDLERS ───────────────────────────────────────────────────────
 async function runExcelDataGen(text) {
-    // 1. Check if it's a Formula (starts with =)
     const trimmed = text.trim();
     if (trimmed.startsWith("=")) {
-        // Insert formula into selected cell
-        Excel.run(async (context) => {
-            const range = context.workbook.getSelectedRange();
-            range.formulas = [[trimmed]];
-            await context.sync();
-            console.log("Formula inserted.");
-        }).catch(err => console.error(err));
+        await Excel.run(async (ctx) => { ctx.workbook.getSelectedRange().formulas = [[trimmed]]; await ctx.sync(); showToast("✅ Formula disisipkan!"); }).catch(console.error);
         return;
     }
+    let rows = text.split("\n").filter(r => r.trim());
+    if (rows[0] && /^(sure|here|berikut)/i.test(rows[0])) rows.shift();
+    if (!rows.length) return;
+    let delim = ",";
+    if (rows[0].includes("|")) { delim = "|"; rows = rows.filter(r => !r.includes("---")); }
+    const matrix = rows.map(r => r.split(delim).map(c => c.trim().replace(/^\||\|$/g, "")));
+    if (!matrix.length) return;
+    await Excel.run(async (ctx) => {
+        const tgt = ctx.workbook.getSelectedRange().getResizedRange(matrix.length - 1, matrix[0].length - 1);
+        tgt.values = matrix; tgt.format.autofitColumns(); await ctx.sync(); showToast(`✅ ${matrix.length} baris disisipkan!`);
+    }).catch(console.error);
+}
 
-    // 2. CSV / Data Table parser
-    // Heuristic: Does it look like CSV? (Comma or Tab separated, multiple lines)
-    // Or just a list.
-    // We will parse standard CSV format (e.g. "Name,Age\nJohn,25")
-    
-    // Simple CSV parser (handles commas)
-    let rows = text.split('\n').filter(r => r.trim() !== '');
-    
-    // Remove "Sure" lines
-     if (rows.length > 0 && (rows[0].toLowerCase().startsWith("sure") || rows[0].toLowerCase().startsWith("here"))) {
-        rows.shift();
-    }
-    
-    if (rows.length === 0) return;
-
-    // Detect delimiter (Comma or Pipe or Tab)
-    // We'll assume the prompt asked for CSV or Table.
-    // Let's try to detect | (Markdown table) vs , (CSV)
-    let delimiter = ",";
-    if (rows[0].includes("|")) {
-        delimiter = "|";
-        // Filter out separator lines like "|---|---|"
-        rows = rows.filter(r => !r.includes("---"));
-    }
-
-    const matrix = rows.map(row => {
-        // Split by delimiter
-        let cols = row.split(delimiter);
-        // Clean whitespace
-        return cols.map(c => c.trim().replace(/^\||\|$/g, '')); // Remove leading/trailing pipes if markdown
-    });
-
-    if (matrix.length === 0) return;
-
-    // 3. Insert Matrix into Excel
-    await Excel.run(async (context) => {
-        const sheet = context.workbook.worksheets.getActiveWorksheet();
-        const activeRange = context.workbook.getSelectedRange();
-        // Determine target range based on matrix size
-        const numRows = matrix.length;
-        const numCols = matrix[0].length;
-        
-        // We can't easily "resize" from activeRange without loading props, 
-        // but we can use getResizedRange relative to the top-left of selection.
-        const targetRange = activeRange.getResizedRange(numRows - 1, numCols - 1);
-        
-        console.log(`Writing ${numRows}x${numCols} matrix to Excel.`);
-        targetRange.values = matrix;
-        targetRange.format.autofitColumns();
-        
-        await context.sync();
-    }).catch(error => {
-        console.error("Excel Error: " + error);
-        // Fallback
-        Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text });
-    });
+async function runExcelStatInsert(text) {
+    let rows = text.split("\n").filter(r => r.includes("|") && !r.includes("---"));
+    if (!rows.length) { Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text }); return; }
+    const matrix = rows.map(r => r.split("|").map(c => c.trim()).filter(c => c !== ""));
+    await Excel.run(async (ctx) => {
+        const tgt = ctx.workbook.getSelectedRange().getResizedRange(matrix.length - 1, matrix[0].length - 1);
+        tgt.values = matrix; tgt.format.autofitColumns(); await ctx.sync(); showToast("✅ Statistik disisipkan!");
+    }).catch(console.error);
 }
 
 async function runExcelChartGen(text) {
-    // Basic heuristic: Detect chart type logic or just assume "ColumnClustered"
-    // Ideally prompt would return JSON {"type": "Line", "data": ...}
-    // But for "Crazy" mode, let's just make it Smart.
-    
-    // If text contains "Pie", use Pie.
-    // If text contains "Line", use Line.
-    // Default Column.
-    
-    let chartType = "ColumnClustered";
-    if (text.toLowerCase().includes("pie")) chartType = "Pie";
-    else if (text.toLowerCase().includes("line") || text.toLowerCase().includes("garis")) chartType = "Line";
-    else if (text.toLowerCase().includes("bar") || text.toLowerCase().includes("batang")) chartType = "BarClustered";
-    
-    await Excel.run(async (context) => {
-        const sheet = context.workbook.worksheets.getActiveWorksheet();
-        const range = context.workbook.getSelectedRange(); // Assume user selected data
-        
-        // If selection is single cell, try used range? No, dangerous.
-        // Let's assume user selected data.
-        
-        const chart = sheet.charts.add(chartType, range);
-        chart.title.text = "Generated Chart";
-        
-        await context.sync();
-        console.log("Chart created.");
-    }).catch(err => {
-        console.error("Chart Error: " + err);
-    });
+    let type = "ColumnClustered";
+    if (/pie|lingkaran/i.test(text)) type = "Pie";
+    else if (/line|garis/i.test(text)) type = "Line";
+    else if (/bar|batang/i.test(text)) type = "BarClustered";
+    await Excel.run(async (ctx) => {
+        const chart = ctx.workbook.worksheets.getActiveWorksheet().charts.add(type, ctx.workbook.getSelectedRange());
+        chart.title.text = "Generated Chart"; await ctx.sync(); showToast("✅ Grafik dibuat!");
+    }).catch(console.error);
 }
 
+// ── PPT CORE HANDLER ──────────────────────────────────────────────────────────
 async function runPowerPointSlideGen(text) {
-    // 1. Try to Parse as JSON (for Multi-Slide Decks)
     let slidesData = [];
-    
-    try {
-        // Find JSON Array in text
-        const jsonMatch = text.match(/\[\s*\{.*\}\s*\]/s);
-        if (jsonMatch) {
-            slidesData = JSON.parse(jsonMatch[0]);
-        }
-    } catch (e) {
-        console.log("Not JSON, falling back to single slide parser.");
+    try { const m = text.match(/\[[\s\S]*\]/); if (m) slidesData = JSON.parse(m[0]); } catch {}
+    if (!slidesData.length) {
+        const lines = text.split("\n").filter(l => l.trim());
+        if (lines.length) slidesData.push({ title: lines[0].replace(/^(TITLE:|[#*]+)\s*/i,"").trim(), points: lines.slice(1).map(l => l.replace(/^[-*•]\s*/,"")), notes: "" });
     }
-
-    // 2. Fallback: Parse Single Slide Format (Title\nBullets)
-    if (slidesData.length === 0) {
-         let lines = text.split('\n').filter(line => line.trim() !== '');
-         // Cleanup "Sure"
-         if (lines.length > 0 && (lines[0].toLowerCase().startsWith("sure") || lines[0].toLowerCase().startsWith("here"))) lines.shift();
-         
-         if (lines.length > 0) {
-             let title = lines[0].replace(/^TITLE:\s*/i, '').replace(/^[#*]+\s*/, '').trim();
-             lines.shift();
-             let points = lines.map(line => line.replace(/^[-*•]\s*/, '').trim());
-             slidesData.push({ title: title, points: points });
-         }
-    }
-    
-    if (slidesData.length === 0) return;
-
-    // 3. Generate Slides Loop
-    await PowerPoint.run(async (context) => {
-        const presentation = context.presentation;
-        const slides = presentation.slides;
-
-        // Loop through each slide data
+    if (!slidesData.length) return;
+    await PowerPoint.run(async (ctx) => {
         for (const data of slidesData) {
-            const slide = slides.add();
-            // Assuming Standard Layout (Title + Content)
-            const titleShape = slide.shapes.getItemAt(0); 
-            const bodyShape = slide.shapes.getItemAt(1);
-            
-            titleShape.textFrame.textRange.text = data.title || "No Title";
-            
-            // Body
-            const bodyText = Array.isArray(data.points) ? data.points.join('\n') : (data.points || "");
-            bodyShape.textFrame.textRange.text = bodyText;
+            const slide = ctx.presentation.slides.add();
+            slide.shapes.getItemAt(0).textFrame.textRange.text = data.title || "Slide";
+            slide.shapes.getItemAt(1).textFrame.textRange.text = Array.isArray(data.points) ? data.points.join("\n") : (data.points || "");
         }
-
-        await context.sync();
-        console.log(`Created ${slidesData.length} slides.`);
-    }).catch(error => {
-        console.error("PPT Error: " + error);
-        // Fallback
-        Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text });
-    });
+        await ctx.sync(); showToast(`✅ ${slidesData.length} slide dibuat!`);
+    }).catch((err) => { console.error(err); Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text }); });
 }
+
+// ── TEMPLATE MANAGER (Word templates) ────────────────────────────────────────
+window.applyBuiltinTemplate = function(type) {
+    if (Office.context.host !== Office.HostType.Word) { showToast("⚠️ Template hanya untuk Microsoft Word"); return; }
+    const templates = {
+        "jurnal-indonesia": `# [JUDUL JURNAL]\n\n**Penulis:** [Nama]¹  \n**Afiliasi:** ¹[Universitas]  \n**Email:** [email@domain.com]\n\n---\n\n## Abstrak\n\n[Abstrak Bahasa Indonesia, 150-250 kata: latar belakang, tujuan, metode, hasil, kesimpulan.]\n\n**Kata Kunci:** kata1; kata2; kata3\n\n---\n\n## *Abstract*\n\n*[Abstract in English, 150-250 words.]*\n\n***Keywords:*** *keyword1; keyword2; keyword3*\n\n---\n\n## 1. Pendahuluan\n\n## 2. Tinjauan Pustaka\n\n## 3. Metodologi Penelitian\n\n### 3.1 Jenis Penelitian\n\n### 3.2 Teknik Pengumpulan Data\n\n### 3.3 Teknik Analisis Data\n\n## 4. Hasil dan Pembahasan\n\n### 4.1 Hasil\n\n### 4.2 Pembahasan\n\n## 5. Kesimpulan\n\n## Daftar Pustaka\n\n[Penulis, A. (Tahun). *Judul*. Jurnal, Vol(No), Hal.]\n`,
+        "jurnal-inggris": `# [JOURNAL TITLE]\n\n**Authors:** [Name]¹  \n**Affiliation:** ¹[University]  \n**Email:** [email@domain.com]\n\n---\n\n## *Abstract*\n\n*[Abstract in English, 150-250 words.]*\n\n***Keywords:*** *keyword1; keyword2; keyword3*\n\n---\n\n## Abstrak\n\n[Abstrak Bahasa Indonesia, 150-250 kata.]\n\n**Kata Kunci:** kata1; kata2; kata3\n\n---\n\n## 1. *Introduction*\n\n## 2. *Literature Review*\n\n## 3. *Methodology*\n\n## 4. *Results and Discussion*\n\n## 5. *Conclusion*\n\n## *References*\n\n*[1] A. Author, "Title," Journal, vol. X, pp. Y-Z, Year.*\n`,
+        "artikel-ilmiah": `# [JUDUL ARTIKEL]\n\n**Penulis:** [Nama] — [Institusi]\n**Tanggal:** [Tanggal]\n\n---\n\n## Abstrak\n\n[100-150 kata.]\n\n**Kata Kunci:** kata1, kata2, kata3\n\n---\n\n## 1. Pendahuluan\n\n## 2. Pembahasan\n\n### 2.1 [Sub-topik 1]\n\n### 2.2 [Sub-topik 2]\n\n## 3. Penutup\n\n## Daftar Pustaka\n`,
+        "skripsi": `# JUDUL SKRIPSI\n\n**Nama:** [Nama]  \n**NIM:** [NIM]  \n**Program Studi:** [Prodi]  \n**Universitas:** [Universitas]  \n**Tahun:** [Tahun]\n\n---\n\n# BAB I — PENDAHULUAN\n\n## 1.1 Latar Belakang\n\n## 1.2 Rumusan Masalah\n\n## 1.3 Tujuan\n\n## 1.4 Manfaat\n\n## 1.5 Batasan\n\n---\n\n# BAB II — TINJAUAN PUSTAKA\n\n## 2.1 [Teori Utama]\n\n## 2.2 Penelitian Terdahulu\n\n---\n\n# BAB III — METODOLOGI\n\n## 3.1 Jenis Penelitian\n\n## 3.2 Populasi dan Sampel\n\n## 3.3 Pengumpulan Data\n\n## 3.4 Analisis Data\n\n---\n\n# BAB IV — HASIL DAN PEMBAHASAN\n\n## 4.1 Hasil\n\n## 4.2 Pembahasan\n\n---\n\n# BAB V — PENUTUP\n\n## 5.1 Kesimpulan\n\n## 5.2 Saran\n\n---\n\n# DAFTAR PUSTAKA\n\n---\n\n# LAMPIRAN\n`,
+        "prosiding": `# [JUDUL PROSIDING]\n\n**Penulis:** [Nama]¹  \n**Konferensi:** [Nama Konferensi, Tahun]\n\n---\n\n## *Abstract*\n*[150-200 words]*\n\n***Keywords:*** *keyword1, keyword2*\n\n## 1. Pendahuluan\n\n## 2. Metode\n\n## 3. Hasil\n\n## 4. Kesimpulan\n\n## Referensi\n*[1] A. Author, "Title," Proc. Conf., Year.*\n`,
+        "makalah": `# [JUDUL MAKALAH]\n\n**Disusun oleh:** [Nama]  \n**Mata Kuliah:** [MK]  \n**Dosen:** [Nama Dosen]  \n**Tanggal:** [Tanggal]\n\n---\n\n## BAB I — PENDAHULUAN\n\n### 1.1 Latar Belakang\n\n### 1.2 Rumusan Masalah\n\n### 1.3 Tujuan\n\n## BAB II — PEMBAHASAN\n\n### 2.1 [Sub-topik]\n\n## BAB III — PENUTUP\n\n### 3.1 Kesimpulan\n\n### 3.2 Saran\n\n## DAFTAR PUSTAKA\n`
+    };
+    const content = templates[type];
+    if (!content) return;
+    Word.run(async (ctx) => {
+        ctx.document.body.clear();
+        ctx.document.body.insertText(content, Word.InsertLocation.start);
+        await ctx.sync();
+        showToast("✅ Template diterapkan!");
+        document.getElementById("template-panel").classList.add("hidden");
+        document.getElementById("template-btn").classList.remove("active");
+    }).catch(() => showToast("❌ Gagal menerapkan template"));
+};
+
+// ── CITATION ──────────────────────────────────────────────────────────────────
+window.insertCitation = async function(style) {
+    const input = document.getElementById("citation-input").value.trim();
+    if (!input) { showToast("⚠️ Masukkan info referensi!"); return; }
+    showToast("⏳ Memformat sitasi...");
+    try {
+        const result = await callGeminiAPI(`Format referensi berikut ke ${style}:\n${input}\nOutput HANYA sitasi, tanpa penjelasan.`);
+        if (Office.context.host === Office.HostType.Word) {
+            Word.run(async (ctx) => { ctx.document.getSelection().insertText("\n" + result.trim() + "\n", Word.InsertLocation.after); await ctx.sync(); showToast(`✅ Sitasi ${style} disisipkan!`); });
+        } else { addBotMessage(`**Sitasi ${style}:**\n\n${result}`); }
+        document.getElementById("citation-input").value = "";
+    } catch (e) { showToast("❌ Error: " + e.message); }
+};

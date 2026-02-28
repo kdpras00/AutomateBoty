@@ -1,0 +1,38 @@
+<div id="academic-panel" class="hidden mode-panel">
+    <div class="panel-header">
+        <div class="panel-title">Academic Writing</div>
+        <p class="panel-desc">Alat bantu penulisan ilmiah dan akademik.</p>
+    </div>
+    
+    <div class="tools-grid">
+        <div class="tool-group">
+            <div class="tool-group-label">Parafrase</div>
+            <div class="tool-btns">
+                <button class="btn-outline" onclick="parafraseTeks('ringan')">Ringan</button>
+                <button class="btn-outline" onclick="parafraseTeks('sedang')">Sedang</button>
+                <button class="btn-outline" onclick="parafraseTeks('ketat')">Ketat</button>
+            </div>
+        </div>
+        <div class="tool-group">
+            <div class="tool-group-label">Pemeriksaan & Bimbingan</div>
+            <div class="tool-btns">
+                <button class="btn-outline" onclick="proofreadingMendalam()">Proofreading</button>
+                <button id="bimbingan-btn" class="btn-outline" onclick="toggleBimbinganSkripsi()">Bimbingan Terpadu</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Outline Builder -->
+    <div id="outline-builder-panel" class="tool-group" style="margin-top:16px;">
+        <div class="tool-group-label">Outline Builder</div>
+        <select id="outline-type-select" class="select-input">
+            <option value="Skripsi">Skripsi</option>
+            <option value="Jurnal Ilmiah">Jurnal Ilmiah</option>
+            <option value="Makalah">Makalah</option>
+            <option value="Artikel">Artikel</option>
+        </select>
+        <textarea id="outline-topic-input" placeholder="Topik penelitian..." rows="2" style="margin-top:8px;"></textarea>
+        <button class="btn-primary" style="margin-top:8px;width:100%;" onclick="generateOutline()">Buat Outline Struktur</button>
+        <div id="outline-result" style="margin-top:8px;"></div>
+    </div>
+</div>

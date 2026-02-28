@@ -1,0 +1,34 @@
+<div id="data-panel" class="hidden mode-panel">
+    <div class="panel-header">
+        <div class="panel-title">Data Analysis</div>
+        <p class="panel-desc">Analisis statistik dan pengelolaan tabel data.</p>
+    </div>
+
+    <div class="tools-grid">
+        <div class="tool-group">
+            <div class="tool-group-label">Template Tabel & Struktur</div>
+            <div class="tool-btns">
+                <button class="btn-outline" onclick="insertTemplateTabel('frekuensi')">Frekuensi</button>
+                <button class="btn-outline" onclick="insertTemplateTabel('distribusi')">Distribusi</button>
+                <button class="btn-outline" onclick="insertTemplateTabel('crosstab')">Cross-tab</button>
+                <button class="btn-outline" onclick="insertTemplateTabel('kuesioner')">Kuesioner</button>
+                <button class="btn-outline" onclick="insertTemplateTabel('rangkuman')">Rangkuman</button>
+            </div>
+        </div>
+        <div class="tool-group">
+            <div class="tool-group-label">Analisis Data</div>
+            <div class="tool-btns">
+                <button class="btn-outline" onclick="analisisRegresi()">Regresi & Korelasi</button>
+                <button class="btn-outline" onclick="interpretasiStatistik()">Interpretasi Bab IV</button>
+            </div>
+        </div>
+        
+        <div class="tool-group" style="margin-top:8px;">
+            <div class="tool-group-label">Validasi Data Input</div>
+            <div class="search-box">
+                <input type="text" id="validation-input" class="text-input" placeholder="Misal: Sangat Setuju, Setuju, Netral, Tidak Setuju">
+                <button class="btn-primary" onclick="terapkanValidasiData()">Terapkan</button>
+            </div>
+        </div>
+    </div>
+</div>
