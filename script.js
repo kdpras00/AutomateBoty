@@ -247,8 +247,8 @@ function buildSystemPrompt(host, lang) {
     const isEN = lang === "EN";
     if (host === Office.HostType.Word) {
         return isEN
-            ? `You are an expert academic writer. Rules: 1) Use Markdown. 2) English text ALWAYS in *italic*. 3) For journals: Title, Abstract (EN+ID), Introduction, Literature Review, Methodology, Results & Discussion, Conclusion, References (IEEE). 4) Citations: IEEE format. 5) Output ONLY document content. 6) If user requests document formatting like A4 paper, two columns, or specific font, output a JSON block AT THE VERY BEGINNING like: \`\`\`json\n{"layout": {"paperSize": "A4", "columns": 2, "font": "Times New Roman"}}\n\`\`\` before the text.`
-            : `Kamu adalah penulis akademis ahli. Aturan: 1) Gunakan Markdown. 2) Teks Inggris SELALU *italic*. 3) Untuk jurnal: Judul, Abstrak (ID+EN), Pendahuluan, Tinjauan Pustaka, Metodologi, Hasil & Pembahasan, Kesimpulan, Daftar Pustaka (APA). 4) Sitasi: format APA. 5) Output HANYA konten dokumen. 6) Jika user meminta format dokumen seperti kertas A4, dua kolom, atau font khusus, keluarkan blok JSON DI PALING ATAS seperti: \`\`\`json\n{"layout": {"paperSize": "A4", "columns": 2, "font": "Times New Roman"}}\n\`\`\` sebelum menyajikan teks.`;
+            ? `You are an expert academic writer. Rules: 1) Use Markdown. 2) English text ALWAYS in *italic*. 3) For journals: Title, Abstract (EN+ID), Introduction, Literature Review, Methodology, Results & Discussion, Conclusion, References (IEEE). 4) Citations: IEEE format. 5) Output ONLY document content. 6) If user requests document formatting like A4 paper, two columns, or specific font/alignment/margins, output a JSON block AT THE VERY BEGINNING like: \`\`\`json\n{"layout": {"paperSize": "A4", "columns": 2, "font": "Times New Roman", "alignment": "justified", "margins": {"top": 85, "bottom": 70, "left": 85, "right": 70}}}\n\`\`\` before the text.`
+            : `Kamu adalah penulis akademis ahli. Aturan: 1) Gunakan Markdown. 2) Teks Inggris SELALU *italic*. 3) Untuk jurnal: Judul, Abstrak (ID+EN), Pendahuluan, Tinjauan Pustaka, Metodologi, Hasil & Pembahasan, Kesimpulan, Daftar Pustaka (APA). 4) Sitasi: format APA. 5) Output HANYA konten dokumen. 6) Jika user meminta format dokumen seperti kertas A4, margin (3-3-2.5-2.5), dua kolom, font khusus, atau teks justify/rata kiri-kanan, keluarkan blok JSON DI PALING ATAS seperti: \`\`\`json\n{"layout": {"paperSize": "A4", "columns": 2, "font": "Times New Roman", "alignment": "justified", "margins": {"top": 85, "bottom": 70, "left": 85, "right": 70}}}\n\`\`\` sebelum menyajikan teks.`;
     } else if (host === Office.HostType.Excel) {
         return `Kamu adalah Excel Expert. Aturan: 1) Formula: output HANYA rumus dimulai =. 2) Data/tabel: CSV atau Markdown table. 3) Statistik: hitung N,Mean,Median,StdDev,Min,Max,Range dalam format tabel. 4) Interpretasi: narasi profesional. 5) Tanpa filler.`;
     } else if (host === Office.HostType.PowerPoint) {
@@ -466,23 +466,50 @@ function insertIntoDocument(text) {
                         section.getPageSetup().pageHeight = 842; 
                         section.getPageSetup().pageWidth = 595;  
                     }
+
+                    if (layoutCmds.margins) {
+                        if (layoutCmds.margins.top) section.getPageSetup().topMargin = layoutCmds.margins.top;
+                        if (layoutCmds.margins.bottom) section.getPageSetup().bottomMargin = layoutCmds.margins.bottom;
+                        if (layoutCmds.margins.left) section.getPageSetup().leftMargin = layoutCmds.margins.left;
+                        if (layoutCmds.margins.right) section.getPageSetup().rightMargin = layoutCmds.margins.right;
+                    }
+
                 } catch (e) { console.warn("PageSetup failed", e); }
             }
 
             // Insert HTML
             const html = marked.parse(cleanText);
             const selection = ctx.document.getSelection();
-            selection.insertHtml(html, Word.InsertLocation.after);
+            const range = selection.insertHtml(html, Word.InsertLocation.after);
             
-            // Try to format text (Body font style)
-            if (layoutCmds && layoutCmds.font) {
+            // Try to format text (Body font style & Alignment)
+            if (layoutCmds) {
                 try {
-                    const body = ctx.document.body;
-                    body.font.name = layoutCmds.font;
-                    if (layoutCmds.fontSize) {
-                        body.font.size = layoutCmds.fontSize;
+                    if (layoutCmds.font) {
+                        range.font.name = layoutCmds.font;
+                        if (layoutCmds.fontSize) {
+                            range.font.size = layoutCmds.fontSize;
+                        }
                     }
-                } catch(e) { console.warn("Font formatting failed", e); }
+                    if (layoutCmds.alignment) {
+                        const paragraphs = range.paragraphs;
+                        paragraphs.load("items");
+                        await ctx.sync();
+                        for (let i = 0; i < paragraphs.items.length; i++) {
+                            // "Left", "Centered", "Right", or "Justified"
+                            let align = layoutCmds.alignment.toLowerCase();
+                            if (align === "justify" || align === "justified") {
+                                paragraphs.items[i].alignment = Word.Alignment.justified;
+                            } else if (align === "center") {
+                                paragraphs.items[i].alignment = Word.Alignment.centered;
+                            } else if (align === "right") {
+                                paragraphs.items[i].alignment = Word.Alignment.right;
+                            } else {
+                                paragraphs.items[i].alignment = Word.Alignment.left;
+                            }
+                        }
+                    }
+                } catch(e) { console.warn("Text formatting failed", e); }
             }
             
             await ctx.sync();
