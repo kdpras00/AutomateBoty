@@ -77,6 +77,13 @@ async function wordDynamicFormat(p) {
                         const ori = (props.orientation || "").toLowerCase();
                         if (ori === "landscape") pg.orientation = Word.PageOrientation.landscape;
                         else if (ori === "portrait") pg.orientation = Word.PageOrientation.portrait;
+
+                        if (props.paperSize) {
+                            const size = (props.paperSize || "").toLowerCase();
+                            if (size === "a4") pg.paperSize = Word.PaperType.a4;
+                            else if (size === "letter") pg.paperSize = Word.PaperType.letter;
+                            else if (size === "legal") pg.paperSize = Word.PaperType.legal;
+                        }
                     }
                 }
             }

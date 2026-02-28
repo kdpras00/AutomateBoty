@@ -261,46 +261,42 @@ function buildSystemPrompt(host, lang) {
     const isEN = lang === "EN";
 
     // Shared action JSON instruction
+    // Shared action JSON instruction
     const ACTION_RULE = `
-PENTING — Action Execution:
-Jika perintah menyangkut FORMAT, LAYOUT, DESAIN, MACRO, atau KONFIGURASI DOKUMEN APAPUN, keluarkan blok Action JSON seperti ini:
+PENTING — Aturan Eksekusi Aksi:
+Jika perintah menyangkut FORMATTING, LAYOUT, DESAIN, MACRO, atau KONFIGURASI DOKUMEN APAPUN, keluarkan **HANYA SATU (1)** blok Action JSON seperti ini:
 \`\`\`action
 {"action":"NAMA_ACTION","params":{...}}
 \`\`\`
-TIDAK ADA BATASAN. Jika Anda membutuhkan fungsionalitas Office.js yang bebas dan spesifik, Anda HARUS menggunakan action "SCRIPT_EXECUTION".
-- params format untuk SCRIPT_EXECUTION: {"script": "kode_javascript_disini"}
-- Aturan script: 
-  1. Anda sudah berada di dalam \`Word/Excel/PowerPoint.run(async (context) => { ... })\`.
-  2. Jangan panggil \`.run()\` lagi. Cukup gunakan objek \`context\`.
-  3. INGAT: Gunakan \`await context.sync();\` di akhir skrip (atau di antara pembacaan/penulisan objek) agar perubahannya dimuat.
-  4. Script dikirimkan sebagai string JSON satu baris yang valid (escape quotes/newlines dengan benar).
+PILIHAN ACTION:
+1. PREFERRED: Selalu utamakan action *_DYNAMIC_FORMAT (seperti WORD_DYNAMIC_FORMAT) jika hanya menyetel properti.
+2. ADVANCED SCRIPT (Tanpa Batasan): JIKA *_DYNAMIC_FORMAT tidak cukup (butuh makro looping, logic khusus, insert objek kompleks), gunakan action "SCRIPT_EXECUTION".
+   - format params: {"script": "kode_javascript_disini"}
+   - Rules: Berada di dalam \`run(async (context) => { ... })\`. Gunakan \`context\`. Akhiri \`await context.sync();\`.
+   - AWAS HALLUSINASI API: Pastikan method Office.js Anda akurat (e.g., properti \`pageSetup\` bukan \`getPageSetup()\`).
 
-Contoh SCRIPT_EXECUTION untuk Excel:
-\`\`\`action
-{"action":"SCRIPT_EXECUTION","params":{"script":"const sheet = context.workbook.worksheets.getActiveWorksheet(); const range = sheet.getRange('A1'); range.values = [['Hello']]; range.format.fill.color = 'yellow'; await context.sync();"}}
-\`\`\`
-
-Jika perintah murni tentang KONTEN/ISI/TEKS (misal diminta menulis artikel akademis tanpa spesifik tata letak/format), JANGAN gunakan Action JSON. Cukup keluarkan teks biasa.`;
+Jika Anda mengeksekusi aksi, JANGAN menulis ulang format JSON-nya di luar blok \`\`\`action. Cukup tulis pesan ramah singkat lalu berikan 1 blok \`\`\`action.
+Jika perintah murni tentang KONTEN tertulis tanpa format, teks biasa saja, tanpa JSON.`;
 
     if (host === Office.HostType.Word) {
         const base = isEN
             ? `You are an expert academic writer AND a Word document automation assistant. RULES:
-1) For writing requests: Use Markdown, English text in *italic*.
-2) For ANY formatting, layout, or design request not related to content generation: Use Action JSON with action "WORD_DYNAMIC_FORMAT".
-   - params format: { tasks: [ { target: "font"|"paragraph"|"page"|"selection", props: { ... } } ] }
-   - Example props for "page": { marginTop: "2.5", marginBottom: "2.5", marginLeft: "2.5", orientation: "portrait" }
-   - Example props for "paragraph": { alignment: "Justified", lineSpacing: "1.5" }
-   - Example props for "font": { name: "Times New Roman", size: 12, bold: true }
-3) For table creation use "WORD_INSERT_TABLE" {rows, cols, headers:[], data:[[]]}.`
+1) Writing: Use Markdown, English in *italic*.
+2) ANY formatting/layout request: Use "WORD_DYNAMIC_FORMAT" action JSON.
+   - format: { tasks: [ { target: "font"|"paragraph"|"page"|"selection", props: { ... } } ] }
+   - "page" props: { marginTop, marginBottom, marginLeft, marginRight, orientation: "portrait"|"landscape", paperSize: "A4"|"Letter" }
+   - "paragraph" props: { alignment: "Justified", lineSpacing }
+   - "font" props: { name: "Times New Roman", size: 12, bold: true }
+3) Table creation: "WORD_INSERT_TABLE" {rows, cols, headers:[], data:[[]]}`
             : `Kamu adalah penulis akademis ahli DAN asisten otomasi dokumen Word. ATURAN:
-1) Permintaan konten tertulis: Gunakan Markdown.
-2) Permintaan format, layout, margin, font, spasi APAPUN: Gunakan Action JSON dengan action "WORD_DYNAMIC_FORMAT".
+1) Konten: Gunakan Markdown.
+2) Permintaan format/layout APAPUN: Wajib gunakan action "WORD_DYNAMIC_FORMAT".
    - Format params: { tasks: [ { target: "font"|"paragraph"|"page"|"selection", props: { ... } } ] }
-   - Contoh props "page": { marginTop: "2.5", marginBottom: "2.5", marginLeft: "2.5" } (dalam cm)
-   - Contoh props "paragraph": { alignment: "Justified", lineSpacing: "1.5" }
-   - Contoh props "font": { name: "Times New Roman", size: 12, bold: true }
-3) Untuk pembuatan tabel gunakan "WORD_INSERT_TABLE" {rows, cols, headers:[], data:[[]]}.`;
-        return base + ACTION_RULE;
+   - Contoh "page": { paperSize: "A4", orientation: "portrait", marginTop: "2.5" } 
+   - Contoh "paragraph": { alignment: "Justified", lineSpacing: "1.5" }
+   - Contoh "font": { name: "Times New Roman", size: 12, bold: true }
+3) Buat tabel: "WORD_INSERT_TABLE" {rows, cols, headers:[], data:[[]]}`;
+        return base + "\n" + ACTION_RULE;
 
     } else if (host === Office.HostType.Excel) {
         return `Kamu adalah Excel Expert DAN asisten otomasi spreadsheet. ATURAN:
