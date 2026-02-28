@@ -423,68 +423,77 @@ function insertIntoDocument(text) {
         let cleanText = text;
         let layoutCmds = null;
         try {
-            const layoutMatch = text.match(/```json\s*\n(\{\s*"layout".*?\})\n```/is) || text.match(/(\{\s*"layout".*?\})/is);
-            if (layoutMatch) {
-                const parsed = JSON.parse(layoutMatch[1]);
+            // Match ```json { ... } ``` or just { "layout": ... }
+            const jsonRegex = /```json\s*\n(.*?)\n```/is;
+            const pureJsonRegex = /({[\s\n]*"layout".*?})/is;
+            
+            let match = text.match(jsonRegex);
+            let jsonStr = "";
+            let toReplace = "";
+            
+            if (match) {
+                jsonStr = match[1];
+                toReplace = match[0];
+            } else {
+                match = text.match(pureJsonRegex);
+                if (match) {
+                    jsonStr = match[1];
+                    toReplace = match[0];
+                }
+            }
+            
+            if (jsonStr) {
+                const parsed = JSON.parse(jsonStr);
                 if (parsed.layout) {
                     layoutCmds = parsed.layout;
-                    cleanText = text.replace(layoutMatch[0], "").trim();
+                    // Remove the JSON block from text
+                    cleanText = text.replace(toReplace, "").trim();
                 }
             }
         } catch (e) {
-            console.log("No layout JSON found or invalid format.");
+            console.log("No layout JSON found or invalid format.", e);
         }
 
         Word.run(async (ctx) => {
             if (layoutCmds) {
-                const sections = ctx.document.sections;
-                sections.load("items");
-                await ctx.sync();
-                const section = sections.items[0];
-                
-                if (layoutCmds.paperSize) {
-                    // Try to set page size if supported, A4 is generally default but we can set dimensions
-                    // Note: direct page size string like 'A4' might not be fully supported in all APIs without specific dimensions
-                    // So we do a generic approach or page setup
-                    try {
-                        // Page setup properties
-                        if (layoutCmds.paperSize.toLowerCase() === 'a4') {
-                            section.getPageSetup().pageHeight = 842; // Points (29.7cm)
-                            section.getPageSetup().pageWidth = 595;  // Points (21cm)
-                        }
-                    } catch (e) { console.warn("PageSetup sizing failed", e); }
-                }
-                
-                // Set columns if requested
-                if (layoutCmds.columns && layoutCmds.columns > 1) {
-                    // Not all versions of Word API support setting columns directly on section yet,
-                    // but we will attempt to set it if available or log.
-                    console.log("Requested columns: " + layoutCmds.columns);
-                }
+                try {
+                    const sections = ctx.document.sections;
+                    sections.load("items");
+                    await ctx.sync();
+                    const section = sections.items[0];
+                    
+                    if (layoutCmds.paperSize && layoutCmds.paperSize.toLowerCase() === 'a4') {
+                        section.getPageSetup().pageHeight = 842; 
+                        section.getPageSetup().pageWidth = 595;  
+                    }
+                } catch (e) { console.warn("PageSetup failed", e); }
             }
 
+            // Insert HTML
             const html = marked.parse(cleanText);
             const selection = ctx.document.getSelection();
             selection.insertHtml(html, Word.InsertLocation.after);
             
-            // Try to format text
+            // Try to format text (Body font style)
             if (layoutCmds && layoutCmds.font) {
-                // Apply font specifically
-                const body = ctx.document.body;
-                body.font.name = layoutCmds.font;
-                if (layoutCmds.fontSize) {
-                   body.font.size = layoutCmds.fontSize;
-                }
+                try {
+                    const body = ctx.document.body;
+                    body.font.name = layoutCmds.font;
+                    if (layoutCmds.fontSize) {
+                        body.font.size = layoutCmds.fontSize;
+                    }
+                } catch(e) { console.warn("Font formatting failed", e); }
             }
             
             await ctx.sync();
             showToast("✅ Berhasil disisipkan" + (layoutCmds ? " & format diterapkan" : ""));
         }).catch(err => {
-            console.error(err);
+            console.error("Word.run failed, falling back to basic insert. Error:", err);
             // Fallback
             Office.context.document.setSelectedDataAsync(marked.parse(cleanText), { coercionType: Office.CoercionType.Html }, (res) => {
-                if (res.status === Office.AsyncResultStatus.Failed)
+                if (res.status === Office.AsyncResultStatus.Failed) {
                     Office.context.document.setSelectedDataAsync(cleanText, { coercionType: Office.CoercionType.Text });
+                }
             });
         });
     } else if (host === Office.HostType.Excel) {
