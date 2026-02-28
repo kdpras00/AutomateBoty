@@ -272,7 +272,11 @@ PILIHAN ACTION:
 1. PREFERRED: Selalu utamakan action *_DYNAMIC_FORMAT (seperti WORD_DYNAMIC_FORMAT) jika hanya menyetel properti.
 2. ADVANCED SCRIPT (Tanpa Batasan): JIKA *_DYNAMIC_FORMAT tidak cukup (butuh makro looping, logic khusus, insert objek kompleks), gunakan action "SCRIPT_EXECUTION".
    - format params: {"script": "kode_javascript_disini"}
-   - Rules: Berada di dalam \`run(async (context) => { ... })\`. Gunakan \`context\`. Akhiri \`await context.sync();\`.
+   - Aturan SCRIPT_EXECUTION: 
+     a. TULIS HANYA ISI/BODY SCRIPT SAJA. Anda OTOMATIS sudah berada di dalam \`Word.run(async (context) => { ...isi_script_anda... })\`.
+     b. JANGAN PERNAH MENULIS \`run(async (context) => { ... })\` ATAU \`Word.run(...)\` DI DALAM SCRIPT ANDA! JANGAN PERNAH!
+     c. Cukup gunakan objek \`context\` langsung.
+     d. WAJIB Akhiri dengan \`await context.sync();\`.
    - AWAS HALLUSINASI API: Pastikan method Office.js Anda akurat (e.g., properti \`pageSetup\` bukan \`getPageSetup()\`).
 
 Jika Anda mengeksekusi aksi, JANGAN menulis ulang format JSON-nya di luar blok \`\`\`action. Cukup tulis pesan ramah singkat lalu berikan 1 blok \`\`\`action.
