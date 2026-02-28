@@ -173,16 +173,30 @@ async function handleSendMessage() {
 
     try {
         const loadingId = addLoadingMessage();
-        const response = await callGeminiAPI(text);
+        const rawResponse = await callGeminiAPI(text);
         removeMessage(loadingId);
+
+        // Parse AI response for Action JSON commands
+        const { actionData, cleanText } = typeof parseAIResponse === "function"
+            ? parseAIResponse(rawResponse)
+            : { actionData: null, cleanText: rawResponse };
+
+        // Display the clean text (without action JSON block) in chat
+        const displayText = cleanText || rawResponse;
         const msgId = "msg-" + Date.now();
-        addBotMessage(response, msgId);
-        if (response && !response.startsWith("❌")) insertIntoDocument(response);
+        if (displayText) addBotMessage(displayText, msgId);
+
+        // Execute action commands if present
+        if (actionData) {
+            await dispatchAction(actionData);
+        } else {
+            // Fallback: insert content text into document
+            if (rawResponse && !rawResponse.startsWith("❌")) insertIntoDocument(rawResponse);
+        }
 
         // Save to history
-        if (typeof saveToHistory === "function") saveToHistory(text, response);
-        // Cache for offline
-        if (typeof cacheOffline === "function") cacheOffline("last_response", { q: text, a: response });
+        if (typeof saveToHistory === "function") saveToHistory(text, rawResponse);
+        if (typeof cacheOffline === "function") cacheOffline("last_response", { q: text, a: rawResponse });
     } catch (err) {
         removeMessage("loading-msg");
         addBotMessage(`❌ **Error**: ${err.message}\n\nPeriksa koneksi atau API Key.`);
@@ -245,16 +259,70 @@ async function callGeminiAPI(prompt) {
 
 function buildSystemPrompt(host, lang) {
     const isEN = lang === "EN";
+
+    // Shared action JSON instruction
+    const ACTION_RULE = `
+PENTING — Action Execution:
+Jika perintah menyangkut FORMAT, LAYOUT, DESAIN, MACRO, atau KONFIGURASI DOKUMEN APAPUN, keluarkan blok Action JSON seperti ini:
+\`\`\`action
+{"action":"NAMA_ACTION","params":{...}}
+\`\`\`
+TIDAK ADA BATASAN. Jika Anda membutuhkan fungsionalitas Office.js yang bebas dan spesifik, Anda HARUS menggunakan action "SCRIPT_EXECUTION".
+- params format untuk SCRIPT_EXECUTION: {"script": "kode_javascript_disini"}
+- Aturan script: 
+  1. Anda sudah berada di dalam \`Word/Excel/PowerPoint.run(async (context) => { ... })\`.
+  2. Jangan panggil \`.run()\` lagi. Cukup gunakan objek \`context\`.
+  3. INGAT: Gunakan \`await context.sync();\` di akhir skrip (atau di antara pembacaan/penulisan objek) agar perubahannya dimuat.
+  4. Script dikirimkan sebagai string JSON satu baris yang valid (escape quotes/newlines dengan benar).
+
+Contoh SCRIPT_EXECUTION untuk Excel:
+\`\`\`action
+{"action":"SCRIPT_EXECUTION","params":{"script":"const sheet = context.workbook.worksheets.getActiveWorksheet(); const range = sheet.getRange('A1'); range.values = [['Hello']]; range.format.fill.color = 'yellow'; await context.sync();"}}
+\`\`\`
+
+Jika perintah murni tentang KONTEN/ISI/TEKS (misal diminta menulis artikel akademis tanpa spesifik tata letak/format), JANGAN gunakan Action JSON. Cukup keluarkan teks biasa.`;
+
     if (host === Office.HostType.Word) {
-        return isEN
-            ? `You are an expert academic writer. Rules: 1) Use Markdown. 2) English text ALWAYS in *italic*. 3) For journals: Title, Abstract (EN+ID), Introduction, Literature Review, Methodology, Results & Discussion, Conclusion, References (IEEE). 4) Citations: IEEE format. 5) Output ONLY document content.`
-            : `Kamu adalah penulis akademis ahli. Aturan: 1) Gunakan Markdown. 2) Teks Inggris SELALU *italic*. 3) Untuk jurnal: Judul, Abstrak (ID+EN), Pendahuluan, Tinjauan Pustaka, Metodologi, Hasil & Pembahasan, Kesimpulan, Daftar Pustaka (APA). 4) Sitasi: format APA. 5) Output HANYA konten dokumen.`;
+        const base = isEN
+            ? `You are an expert academic writer AND a Word document automation assistant. RULES:
+1) For writing requests: Use Markdown, English text in *italic*.
+2) For ANY formatting, layout, or design request not related to content generation: Use Action JSON with action "WORD_DYNAMIC_FORMAT".
+   - params format: { tasks: [ { target: "font"|"paragraph"|"page"|"selection", props: { ... } } ] }
+   - Example props for "page": { marginTop: "2.5", marginBottom: "2.5", marginLeft: "2.5", orientation: "portrait" }
+   - Example props for "paragraph": { alignment: "Justified", lineSpacing: "1.5" }
+   - Example props for "font": { name: "Times New Roman", size: 12, bold: true }
+3) For table creation use "WORD_INSERT_TABLE" {rows, cols, headers:[], data:[[]]}.`
+            : `Kamu adalah penulis akademis ahli DAN asisten otomasi dokumen Word. ATURAN:
+1) Permintaan konten tertulis: Gunakan Markdown.
+2) Permintaan format, layout, margin, font, spasi APAPUN: Gunakan Action JSON dengan action "WORD_DYNAMIC_FORMAT".
+   - Format params: { tasks: [ { target: "font"|"paragraph"|"page"|"selection", props: { ... } } ] }
+   - Contoh props "page": { marginTop: "2.5", marginBottom: "2.5", marginLeft: "2.5" } (dalam cm)
+   - Contoh props "paragraph": { alignment: "Justified", lineSpacing: "1.5" }
+   - Contoh props "font": { name: "Times New Roman", size: 12, bold: true }
+3) Untuk pembuatan tabel gunakan "WORD_INSERT_TABLE" {rows, cols, headers:[], data:[[]]}.`;
+        return base + ACTION_RULE;
+
     } else if (host === Office.HostType.Excel) {
-        return `Kamu adalah Excel Expert. Aturan: 1) Formula: output HANYA rumus dimulai =. 2) Data/tabel: CSV atau Markdown table. 3) Statistik: hitung N,Mean,Median,StdDev,Min,Max,Range dalam format tabel. 4) Interpretasi: narasi profesional. 5) Tanpa filler.`;
+        return `Kamu adalah Excel Expert DAN asisten otomasi spreadsheet. ATURAN:
+1) Formula: output rumus dimulai dengan =
+2) Untuk permintaan format/desain cell APAPUN: Gunakan Action JSON dengan action "EXCEL_DYNAMIC_FORMAT".
+   - Format: { tasks: [ { target: "selection"|"sheet"|"A1:D1", props: { ... } } ] }
+   - Contoh props: { fill: "#1e3a5f", font: { color: "white", bold: true, size: 12 }, alignment: { horizontal: "Center" }, borders: { style: "Continuous" }, autoFit: true }
+3) Aksi spesifik lainnya: 
+   - "EXCEL_INSERT_DATA": {headers:[], rows:[[]]}
+   - "EXCEL_CREATE_CHART": {type:"Bar"|"Column"|"Line"|"Pie", title}
+   - "EXCEL_INSERT_FORMULA": {formula}
+   - "EXCEL_SORT": {column: 0, ascending: true}` + ACTION_RULE;
+
     } else if (host === Office.HostType.PowerPoint) {
-        return `Kamu adalah Presentation Expert. Aturan: 1) Multi-slide: JSON Array [{"title":"...","points":["..."],"notes":"..."}]. 2) Single: TITLE:[Judul]\\n- Poin. 3) Notes: 2-3 kalimat informatif per slide. 4) Tanpa Markdown.`;
+        return `Kamu adalah Presentation Expert DAN asisten otomasi PowerPoint. ATURAN:
+1) Untuk pembuatan slide: "PPT_CREATE_SLIDES": {slides:[{title, points:[], notes}]}
+2) Untuk permintaan format/desain teks slide APAPUN: Gunakan Action JSON dengan action "PPT_DYNAMIC_FORMAT".
+   - Format: { tasks: [ { target: "font", props: { ... } } ] }
+   - Contoh props: { color: "#1e293b", name: "Arial", size: 24, bold: true }
+3) Tema keseluruhan: "PPT_APPLY_THEME": {titleColor, fontName}` + ACTION_RULE;
     }
-    return "Kamu adalah asisten AI yang membantu mahasiswa. Jawab dengan ringkas dan akurat dalam Bahasa Indonesia.";
+    return "Kamu adalah asisten AI yang membantu mahasiswa dan pekerja kantoran. Jawab dengan ringkas dan akurat dalam Bahasa Indonesia.";
 }
 
 // ── DOCUMENT CONTEXT ──────────────────────────────────────────────────────────
