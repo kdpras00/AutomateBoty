@@ -401,13 +401,28 @@ function handleActionPill(prompt) {
 
     const curr = userInput.value.trim();
     if (prompt.includes("{topic}")) {
-        if (curr) { userInput.value = prompt.replace("{topic}", curr); handleSendMessage(); }
-        else { userInput.value = prompt.replace("{topic}", "[TOPIK]"); userInput.focus(); }
+        if (curr) { 
+            userInput.value = prompt.replace("{topic}", curr); 
+            handleSendMessage(); 
+        }
+        else { 
+            userInput.value = prompt.replace("{topic}", "[TOPIK]"); 
+            userInput.dispatchEvent(new Event('input', { bubbles: true }));
+            userInput.focus(); 
+        }
     } else if (prompt.endsWith(": ")) {
-        if (curr) { userInput.value = prompt + curr; handleSendMessage(); }
-        else { userInput.value = prompt; userInput.focus(); }
+        if (curr) { 
+            userInput.value = prompt + curr; 
+            handleSendMessage(); 
+        }
+        else { 
+            userInput.value = prompt; 
+            userInput.dispatchEvent(new Event('input', { bubbles: true }));
+            userInput.focus(); 
+        }
     } else {
-        userInput.value = prompt; handleSendMessage();
+        userInput.value = prompt; 
+        handleSendMessage();
     }
 }
 
@@ -510,9 +525,12 @@ window.applyBuiltinTemplate = function(type) {
         ctx.document.body.insertText(content, Word.InsertLocation.start);
         await ctx.sync();
         showToast("✅ Template diterapkan!");
-        document.getElementById("template-panel").classList.add("hidden");
-        document.getElementById("template-btn").classList.remove("active");
     }).catch(() => showToast("❌ Gagal menerapkan template"));
+    
+    const panel = document.getElementById("templates-panel");
+    const btn = document.getElementById("nav-templates");
+    if (panel) panel.classList.add("hidden");
+    if (btn) btn.classList.remove("active");
 };
 
 // ── CITATION ──────────────────────────────────────────────────────────────────

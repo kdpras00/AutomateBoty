@@ -91,9 +91,11 @@ window.usePreset = function(index) {
     if (!p) return;
     const userInput = document.getElementById("user-input");
     userInput.value = p.prompt;
+    userInput.dispatchEvent(new Event('input', { bubbles: true }));
     userInput.focus();
-    document.getElementById("presets-panel").classList.add("hidden");
-    document.getElementById("presets-btn").classList.remove("active");
+    document.getElementById("settings-panel").classList.add("hidden");
+    const settingsBtn = document.getElementById("nav-settings");
+    if(settingsBtn) settingsBtn.classList.remove("active");
 };
 
 window.deletePreset = function(index) {
