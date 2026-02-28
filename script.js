@@ -247,8 +247,8 @@ function buildSystemPrompt(host, lang) {
     const isEN = lang === "EN";
     if (host === Office.HostType.Word) {
         return isEN
-            ? `You are an expert academic writer. Rules: 1) Use Markdown. 2) English text ALWAYS in *italic*. 3) For journals: Title, Abstract (EN+ID), Introduction, Literature Review, Methodology, Results & Discussion, Conclusion, References (IEEE). 4) Citations: IEEE format. 5) Output ONLY document content.`
-            : `Kamu adalah penulis akademis ahli. Aturan: 1) Gunakan Markdown. 2) Teks Inggris SELALU *italic*. 3) Untuk jurnal: Judul, Abstrak (ID+EN), Pendahuluan, Tinjauan Pustaka, Metodologi, Hasil & Pembahasan, Kesimpulan, Daftar Pustaka (APA). 4) Sitasi: format APA. 5) Output HANYA konten dokumen.`;
+            ? `You are an expert academic writer. Rules: 1) Use Markdown. 2) English text ALWAYS in *italic*. 3) For journals: Title, Abstract (EN+ID), Introduction, Literature Review, Methodology, Results & Discussion, Conclusion, References (IEEE). 4) Citations: IEEE format. 5) Output ONLY document content. 6) If user requests document formatting like A4 paper, two columns, or specific font, output a JSON block AT THE VERY BEGINNING like: \`\`\`json\n{"layout": {"paperSize": "A4", "columns": 2, "font": "Times New Roman"}}\n\`\`\` before the text.`
+            : `Kamu adalah penulis akademis ahli. Aturan: 1) Gunakan Markdown. 2) Teks Inggris SELALU *italic*. 3) Untuk jurnal: Judul, Abstrak (ID+EN), Pendahuluan, Tinjauan Pustaka, Metodologi, Hasil & Pembahasan, Kesimpulan, Daftar Pustaka (APA). 4) Sitasi: format APA. 5) Output HANYA konten dokumen. 6) Jika user meminta format dokumen seperti kertas A4, dua kolom, atau font khusus, keluarkan blok JSON DI PALING ATAS seperti: \`\`\`json\n{"layout": {"paperSize": "A4", "columns": 2, "font": "Times New Roman"}}\n\`\`\` sebelum menyajikan teks.`;
     } else if (host === Office.HostType.Excel) {
         return `Kamu adalah Excel Expert. Aturan: 1) Formula: output HANYA rumus dimulai =. 2) Data/tabel: CSV atau Markdown table. 3) Statistik: hitung N,Mean,Median,StdDev,Min,Max,Range dalam format tabel. 4) Interpretasi: narasi profesional. 5) Tanpa filler.`;
     } else if (host === Office.HostType.PowerPoint) {
@@ -401,39 +401,91 @@ function handleActionPill(prompt) {
 
     const curr = userInput.value.trim();
     if (prompt.includes("{topic}")) {
-        if (curr) { 
-            userInput.value = prompt.replace("{topic}", curr); 
-            handleSendMessage(); 
-        }
-        else { 
-            userInput.value = prompt.replace("{topic}", "[TOPIK]"); 
-            userInput.dispatchEvent(new Event('input', { bubbles: true }));
-            userInput.focus(); 
-        }
+        userInput.value = prompt.replace("{topic}", curr ? curr : "[TOPIK]"); 
     } else if (prompt.endsWith(": ")) {
-        if (curr) { 
-            userInput.value = prompt + curr; 
-            handleSendMessage(); 
-        }
-        else { 
-            userInput.value = prompt; 
-            userInput.dispatchEvent(new Event('input', { bubbles: true }));
-            userInput.focus(); 
-        }
+        userInput.value = prompt + (curr ? curr : ""); 
     } else {
+        // If there's already text and we click a generic action, maybe just replace or append.
+        // For simplicity, we just replace it as requested.
         userInput.value = prompt; 
-        handleSendMessage();
     }
+    
+    // Terapkan penyesuaian tinggi (auto-resize) untuk SEMUA tombol
+    userInput.dispatchEvent(new Event('input', { bubbles: true }));
+    userInput.focus(); 
 }
 
 // ── INSERT INTO DOCUMENT ──────────────────────────────────────────────────────
 function insertIntoDocument(text) {
     const host = Office.context.host;
     if (host === Office.HostType.Word) {
-        const html = marked.parse(text);
-        Office.context.document.setSelectedDataAsync(html, { coercionType: Office.CoercionType.Html }, (res) => {
-            if (res.status === Office.AsyncResultStatus.Failed)
-                Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text });
+        // Attempt to parse formatting layout JSON blocks
+        let cleanText = text;
+        let layoutCmds = null;
+        try {
+            const layoutMatch = text.match(/```json\s*\n(\{\s*"layout".*?\})\n```/is) || text.match(/(\{\s*"layout".*?\})/is);
+            if (layoutMatch) {
+                const parsed = JSON.parse(layoutMatch[1]);
+                if (parsed.layout) {
+                    layoutCmds = parsed.layout;
+                    cleanText = text.replace(layoutMatch[0], "").trim();
+                }
+            }
+        } catch (e) {
+            console.log("No layout JSON found or invalid format.");
+        }
+
+        Word.run(async (ctx) => {
+            if (layoutCmds) {
+                const sections = ctx.document.sections;
+                sections.load("items");
+                await ctx.sync();
+                const section = sections.items[0];
+                
+                if (layoutCmds.paperSize) {
+                    // Try to set page size if supported, A4 is generally default but we can set dimensions
+                    // Note: direct page size string like 'A4' might not be fully supported in all APIs without specific dimensions
+                    // So we do a generic approach or page setup
+                    try {
+                        // Page setup properties
+                        if (layoutCmds.paperSize.toLowerCase() === 'a4') {
+                            section.getPageSetup().pageHeight = 842; // Points (29.7cm)
+                            section.getPageSetup().pageWidth = 595;  // Points (21cm)
+                        }
+                    } catch (e) { console.warn("PageSetup sizing failed", e); }
+                }
+                
+                // Set columns if requested
+                if (layoutCmds.columns && layoutCmds.columns > 1) {
+                    // Not all versions of Word API support setting columns directly on section yet,
+                    // but we will attempt to set it if available or log.
+                    console.log("Requested columns: " + layoutCmds.columns);
+                }
+            }
+
+            const html = marked.parse(cleanText);
+            const selection = ctx.document.getSelection();
+            selection.insertHtml(html, Word.InsertLocation.after);
+            
+            // Try to format text
+            if (layoutCmds && layoutCmds.font) {
+                // Apply font specifically
+                const body = ctx.document.body;
+                body.font.name = layoutCmds.font;
+                if (layoutCmds.fontSize) {
+                   body.font.size = layoutCmds.fontSize;
+                }
+            }
+            
+            await ctx.sync();
+            showToast("✅ Berhasil disisipkan" + (layoutCmds ? " & format diterapkan" : ""));
+        }).catch(err => {
+            console.error(err);
+            // Fallback
+            Office.context.document.setSelectedDataAsync(marked.parse(cleanText), { coercionType: Office.CoercionType.Html }, (res) => {
+                if (res.status === Office.AsyncResultStatus.Failed)
+                    Office.context.document.setSelectedDataAsync(cleanText, { coercionType: Office.CoercionType.Text });
+            });
         });
     } else if (host === Office.HostType.Excel) {
         const low = text.toLowerCase();
