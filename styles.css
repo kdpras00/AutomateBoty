@@ -320,7 +320,7 @@ textarea.text-input { resize: vertical; min-height: 60px; }
 
 /* INPUT AREA */
 .input-area {
-    padding: 12px 16px;
+    padding: 12px;
     background: var(--panel-bg);
     border-top: 1px solid var(--border-color);
     display: flex;
@@ -348,17 +348,22 @@ textarea#user-input {
     flex: 1;
     background: var(--bg-color);
     border: 1px solid var(--border-color);
-    border-radius: 12px;
-    padding: 10px 14px;
+    border-radius: 20px;
+    padding: 12px 16px;
     color: var(--text-color);
     font-family: inherit;
     resize: none;
-    max-height: 100px;
+    min-height: 44px;
+    max-height: 150px;
     font-size: 13px;
     line-height: 1.4;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, box-shadow 0.2s;
 }
-textarea#user-input:focus { outline: none; border-color: var(--primary-color); }
+textarea#user-input:focus { 
+    outline: none; 
+    border-color: var(--primary-color); 
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1); 
+}
 
 #send-btn {
     background: var(--primary-color);
@@ -464,17 +469,17 @@ textarea#user-input:focus { outline: none; border-color: var(--primary-color); }
 .quick-actions {
     display: flex;
     gap: 8px;
-    padding: 10px 16px;
+    padding: 12px 16px 8px 16px;
     overflow-x: auto;
     white-space: nowrap;
-    background: var(--panel-bg);
-    border-top: 1px solid var(--border-color);
+    background: transparent;
+    border-top: none;
     scrollbar-width: none;
     flex-shrink: 0;
 }
 .quick-actions::-webkit-scrollbar { display: none; }
 .action-pill {
-    background: var(--bg-color);
+    background: var(--panel-bg);
     border: 1px solid var(--border-color);
     color: var(--text-secondary);
     padding: 6px 12px;

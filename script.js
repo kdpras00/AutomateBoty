@@ -56,6 +56,24 @@ function updateHostBadge(host) {
 }
 
 function showHostTools(host) {
+    const navAcademic = document.getElementById("nav-academic");
+    const navData = document.getElementById("nav-data");
+    const navPresentation = document.getElementById("nav-presentation");
+    const navTemplates = document.getElementById("nav-templates");
+
+    if (host === Office.HostType.Word) {
+        if (navData) navData.style.display = "none";
+        if (navPresentation) navPresentation.style.display = "none";
+    } else if (host === Office.HostType.Excel) {
+        if (navAcademic) navAcademic.style.display = "none";
+        if (navPresentation) navPresentation.style.display = "none";
+        if (navTemplates) navTemplates.style.display = "none";
+    } else if (host === Office.HostType.PowerPoint) {
+        if (navAcademic) navAcademic.style.display = "none";
+        if (navData) navData.style.display = "none";
+        if (navTemplates) navTemplates.style.display = "none";
+    }
+
     let initialMode = "chat";
     if (host === Office.HostType.Word) initialMode = "academic";
     else if (host === Office.HostType.Excel) initialMode = "data";
@@ -97,7 +115,7 @@ function setupEventListeners() {
     });
     userInput.addEventListener("input", function() {
         this.style.height = "auto";
-        this.style.height = Math.min(this.scrollHeight, 90) + "px";
+        this.style.height = Math.min(this.scrollHeight, 150) + "px";
     });
 
     // Settings
