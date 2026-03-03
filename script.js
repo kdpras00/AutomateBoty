@@ -325,7 +325,7 @@ async function callGeminiAPI(prompt) {
         throw new Error("Tidak ada koneksi internet.");
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
     const systemRole = buildSystemPrompt(Office.context.host, currentLang);
 
     // Bimbingan mode prefix
@@ -362,11 +362,29 @@ async function callGeminiAPI(prompt) {
     const parts = filePart ? [textPart, filePart] : [textPart];
     const payload = { contents: [{ role: "user", parts }] };
 
-    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    if (!res.ok) { const err = await res.text(); throw new Error(`API Error (${res.status}): ${err.substring(0,200)}`); }
-    const data = await res.json();
-    if (!data.candidates?.length) return "Gemini tidak menghasilkan respons.";
-    return data.candidates[0]?.content?.parts?.[0]?.text || "Tidak ada respons.";
+    // Retry dengan backoff untuk 503 / 429 (server sibuk / rate limit)
+    const maxRetries = 3;
+    const retryDelays = [2000, 4000, 8000]; // ms
+    let lastErr = null;
+
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+        if (attempt > 0) {
+            showToast(`⏳ Server sibuk, mencoba lagi (${attempt}/${maxRetries - 1})...`);
+            await new Promise(r => setTimeout(r, retryDelays[attempt - 1]));
+        }
+        const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        if (res.ok) {
+            const data = await res.json();
+            if (!data.candidates?.length) return "Gemini tidak menghasilkan respons.";
+            return data.candidates[0]?.content?.parts?.[0]?.text || "Tidak ada respons.";
+        }
+        const errText = await res.text();
+        lastErr = new Error(`API Error (${res.status}): ${errText.substring(0, 200)}`);
+        // Hanya retry untuk 503 (server overload) dan 429 (rate limit)
+        if (res.status !== 503 && res.status !== 429) break;
+    }
+
+    throw lastErr;
 }
 
 function buildSystemPrompt(host, lang) {
