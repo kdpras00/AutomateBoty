@@ -75,10 +75,6 @@ function showHostTools(host) {
     }
 
     let initialMode = "chat";
-    if (host === Office.HostType.Word) initialMode = "academic";
-    else if (host === Office.HostType.Excel) initialMode = "data";
-    else if (host === Office.HostType.PowerPoint) initialMode = "presentation";
-    
     if (typeof switchMode === "function") switchMode(initialMode);
 }
 
@@ -151,16 +147,134 @@ function setupEventListeners() {
             const file = e.target.files[0];
             if (!file) return;
             window.currentFile = file;
+
+            // Hapus indicator lama jika ada
             const ex = document.getElementById("file-indicator");
             if (ex) ex.remove();
+
+            // Tampilkan file indicator di atas input
             const ind = document.createElement("div");
             ind.id = "file-indicator";
-            ind.innerHTML = `<span>📎 <strong>${file.name}</strong></span><button id="remove-file-btn" style="background:none;border:none;cursor:pointer;color:#ef4444;font-weight:bold;">✕</button>`;
+            ind.innerHTML = `<span>📎 <strong>${file.name}</strong> <span style="color:var(--text-secondary);font-size:11px;">(${(file.size/1024).toFixed(1)} KB)</span></span><button id="remove-file-btn" style="background:none;border:none;cursor:pointer;color:#ef4444;font-weight:bold;margin-left:8px;">✕</button>`;
             document.querySelector(".input-area").parentElement.insertBefore(ind, document.querySelector(".input-area"));
-            document.getElementById("remove-file-btn").addEventListener("click", () => { window.currentFile = null; ind.remove(); fileInput.value = ""; });
+            document.getElementById("remove-file-btn").addEventListener("click", () => {
+                window.currentFile = null;
+                ind.remove();
+                fileInput.value = "";
+            });
+
+            // Tampilkan pesan konfirmasi di chat
+            const ext = file.name.split(".").pop().toLowerCase();
+            let fileTypeLabel = "teks";
+            if (["jpg","jpeg","png","gif","webp"].includes(ext)) fileTypeLabel = "gambar";
+            else if (ext === "pdf") fileTypeLabel = "PDF";
+            else if (ext === "docx") fileTypeLabel = "dokumen Word (.docx)";
+            else if (ext === "csv") fileTypeLabel = "spreadsheet CSV";
+
+            const confirmMsg = document.createElement("div");
+            confirmMsg.className = "message bot-message";
+            confirmMsg.innerHTML = `<div class="message-content">📎 <strong>File berhasil diupload!</strong><br><br>
+<b>Nama:</b> ${file.name}<br>
+<b>Tipe:</b> ${fileTypeLabel}<br>
+<b>Ukuran:</b> ${(file.size/1024).toFixed(1)} KB<br><br>
+<span style="color:var(--text-secondary); font-size:12px;">✏️ Sekarang ketik instruksi Anda di bawah — misalnya: <em>"Rangkum isi file ini"</em>, <em>"Buat jurnal berdasarkan file ini"</em>, atau <em>"Analisis data ini"</em>.</span></div>`;
+            chatContainer.appendChild(confirmMsg);
+            scrollToBottom();
+
+            // Auto-suggest prompt di input
+            if (!userInput.value.trim()) {
+                userInput.placeholder = `Instruksi untuk file "${file.name.length > 30 ? file.name.substring(0,30)+"..." : file.name}"...`;
+            }
+            userInput.focus();
+        });
+    }
+
+    // ── FOLDER UPLOAD ─────────────────────────────────────────────────────────
+    const folderInput = document.getElementById("folder-upload");
+    if (folderInput) {
+        folderInput.addEventListener("change", async (e) => {
+            const files = Array.from(e.target.files);
+            if (!files.length) return;
+
+            // Filter hanya file teks/dokumen (abaikan file tersembunyi)
+            const supported = files.filter(f => {
+                const ext = f.name.split(".").pop().toLowerCase();
+                return ["txt","md","csv","json","js","py","docx","pdf"].includes(ext) && !f.name.startsWith(".");
+            });
+
+            if (!supported.length) {
+                addBotMessage("⚠️ Tidak ada file yang didukung dalam folder tersebut. Gunakan file .txt, .docx, .pdf, .md, atau .csv.");
+                folderInput.value = "";
+                return;
+            }
+
+            // Tampilkan loading di chat
+            const loadId = "folder-load-" + Date.now();
+            const loadDiv = document.createElement("div");
+            loadDiv.id = loadId;
+            loadDiv.className = "message bot-message";
+            loadDiv.innerHTML = `<div class="message-content">📂 <strong>Membaca ${supported.length} file dari folder...</strong> ⏳</div>`;
+            chatContainer.appendChild(loadDiv);
+            scrollToBottom();
+
+            // Baca semua file secara berurutan
+            window.folderContext = [];
+            for (const file of supported) {
+                try {
+                    const text = await fileToText(file);
+                    window.folderContext.push({
+                        name: file.name,
+                        size: file.size,
+                        text: text.substring(0, 8000) // maks 8000 char per file
+                    });
+                } catch (err) {
+                    console.warn("Gagal baca:", file.name, err);
+                }
+            }
+
+            // Hapus loading
+            const loadEl = document.getElementById(loadId);
+            if (loadEl) loadEl.remove();
+
+            // Deteksi bab yang sudah ada
+            const allText = window.folderContext.map(f => f.text).join(" ").toLowerCase();
+            const babDetected = [];
+            for (let i = 1; i <= 5; i++) {
+                if (allText.includes(`bab ${i}`) || allText.includes(`bab ${["i","ii","iii","iv","v"][i-1]}`)) babDetected.push(i);
+            }
+            const nextBab = babDetected.length ? Math.max(...babDetected) + 1 : null;
+
+            // Tampilkan ringkasan di chat
+            const fileListHtml = window.folderContext.map(f =>
+                `<li>📄 <strong>${f.name}</strong> <span style="color:var(--text-secondary);font-size:11px;">(${(f.size/1024).toFixed(1)} KB)</span></li>`
+            ).join("");
+
+            const babInfo = babDetected.length
+                ? `<br><br>🔍 <strong>Bab Terdeteksi:</strong> BAB ${babDetected.join(", ")}${nextBab && nextBab <= 5 ? ` &nbsp;→&nbsp; <em>Siap lanjut ke <strong>BAB ${nextBab}</strong></em>` : " (semua bab sudah ada)"}`
+                : "";
+
+            const summaryDiv = document.createElement("div");
+            summaryDiv.className = "message bot-message";
+            summaryDiv.innerHTML = `<div class="message-content">📂 <strong>Folder berhasil dimuat!</strong> ${window.folderContext.length} file aktif sebagai konteks AI.<br><br><ul style="margin:4px 0 8px 16px;padding:0;">${fileListHtml}</ul>${babInfo}<br><br><span style="color:var(--text-secondary);font-size:12px;">✏️ Ketik instruksi Anda — misalnya: <em>"Lanjutkan BAB ${nextBab || 3} berdasarkan file-file ini"</em>, atau klik pill <strong>📚 Lanjutkan Bab</strong> di bawah.</span><br><br><button onclick="clearFolderContext()" style="font-size:11px;background:none;border:1px solid #ef4444;color:#ef4444;border-radius:6px;padding:3px 10px;cursor:pointer;">🗑️ Hapus Konteks Folder</button></div>`;
+            chatContainer.appendChild(summaryDiv);
+            scrollToBottom();
+
+            // Auto suggest prompt lanjutan
+            if (nextBab && nextBab <= 5 && !userInput.value.trim()) {
+                userInput.value = `Lanjutkan BAB ${nextBab} skripsi berdasarkan bab-bab sebelumnya yang sudah ada di folder.`;
+                userInput.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            userInput.focus();
+            folderInput.value = "";
         });
     }
 }
+
+// ── CLEAR FOLDER CONTEXT ──────────────────────────────────────────────────────
+window.clearFolderContext = function() {
+    window.folderContext = null;
+    showToast("🗑️ Konteks folder dihapus");
+};
 
 // ── MESSAGE HANDLING ──────────────────────────────────────────────────────────
 async function handleSendMessage() {
@@ -193,6 +307,7 @@ async function handleSendMessage() {
         const fi = document.getElementById("file-upload");
         if (fi) fi.value = "";
         sendBtn.disabled = false;
+        userInput.placeholder = "Tanya AutomateBoty..."; // reset placeholder
         userInput.focus();
     }
 }
@@ -231,7 +346,18 @@ async function callGeminiAPI(prompt) {
         }
     }
 
-    const fullPrompt = bimbinganPrefix + systemRole + "\n\nKonteks:\n" + docContext + fileText + "\n\nPermintaan: " + prompt;
+    // Folder context (multi-file)
+    let folderContextText = "";
+    if (window.folderContext && window.folderContext.length) {
+        folderContextText = "\n\n[KONTEKS FOLDER — file-file pendukung yang sudah ada:]\n";
+        for (const fc of window.folderContext) {
+            folderContextText += `\n--- [${fc.name}] ---\n${fc.text}\n`;
+        }
+        folderContextText += "\n[/KONTEKS FOLDER]\n";
+        folderContextText += "\nPenting: Gunakan konteks folder di atas sebagai referensi. Pastikan konten yang kamu hasilkan KONSISTEN, tidak mengulang yang sudah ada, dan merupakan LANJUTAN yang logis.\n";
+    }
+
+    const fullPrompt = bimbinganPrefix + systemRole + "\n\nKonteks Dokumen Aktif:\n" + docContext + folderContextText + fileText + "\n\nPermintaan: " + prompt;
     const textPart = { text: fullPrompt };
     const parts = filePart ? [textPart, filePart] : [textPart];
     const payload = { contents: [{ role: "user", parts }] };
@@ -282,7 +408,48 @@ async function getDocumentContext() {
 function fileToBase64(file) {
     return new Promise((resolve) => { const r = new FileReader(); r.onloadend = () => resolve(r.result.split(",")[1]); r.readAsDataURL(file); });
 }
-function fileToText(file) {
+
+async function fileToText(file) {
+    const ext = file.name.split(".").pop().toLowerCase();
+
+    // Handle .docx via mammoth.js
+    if (ext === "docx") {
+        try {
+            if (typeof mammoth !== "undefined") {
+                const arrayBuffer = await file.arrayBuffer();
+                const result = await mammoth.extractRawText({ arrayBuffer });
+                return result.value || "[File .docx tidak dapat dibaca]";               
+            }
+        } catch (e) {
+            console.warn("mammoth.js gagal:", e);
+        }
+        return "[File .docx tidak dapat dibaca — mammoth.js tidak tersedia]";
+    }
+
+    // Handle .pdf via pdf.js
+    if (ext === "pdf") {
+        try {
+            if (typeof pdfjsLib !== "undefined") {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                let fullText = "";
+                const maxPages = Math.min(pdf.numPages, 30); // batasi 30 hal pertama
+                for (let i = 1; i <= maxPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    const pageText = content.items.map(item => item.str).join(" ");
+                    fullText += `[Halaman ${i}]\n${pageText}\n\n`;
+                }
+                return fullText || "[PDF tidak memiliki teks yang dapat dibaca]";
+            }
+        } catch (e) {
+            console.warn("pdf.js gagal:", e);
+        }
+        return "[File PDF tidak dapat dibaca — pdf.js tidak tersedia]";
+    }
+
+    // Default: baca sebagai teks biasa (.txt, .csv, .md, .json, .js, .py, dll)
     return new Promise((resolve) => { const r = new FileReader(); r.onload = (e) => resolve(e.target.result); r.readAsText(file); });
 }
 
@@ -335,6 +502,7 @@ function setupQuickActions(host) {
         actions = [
             { label: "📄 Jurnal ID",     prompt: "Buatkan jurnal ilmiah lengkap Bahasa Indonesia tentang {topic}. Sertakan Judul, Abstrak (ID+EN), Pendahuluan, Tinjauan Pustaka, Metodologi, Hasil & Pembahasan, Kesimpulan, Daftar Pustaka APA. Teks Inggris ditulis italic." },
             { label: "📜 Journal EN",    prompt: "Write a complete English academic journal about {topic}. Include Title, Abstract (EN+ID), Introduction, Literature Review, Methodology, Results, Conclusion, References (IEEE). English text in italic." },
+            { label: "📚 Lanjutkan Bab", prompt: "LANJUTKAN_BAB" },
             { label: "✂️ Parafrase",    prompt: "PARAFRASE" },
             { label: "🔍 Proofreading", prompt: "PROOFREADING" },
             { label: "📐 Outline",      prompt: "OUTLINE" },
@@ -396,6 +564,33 @@ function handleActionPill(prompt) {
     if (prompt === "REGRESI")       { analisisRegresi(); return; }
     if (prompt === "INTERPRETASI")  { interpretasiStatistik(); return; }
     if (prompt === "SLIDE_FROM_FILE") { slideFromUploadedFile(); return; }
+    if (prompt === "LANJUTKAN_BAB") {
+        if (!window.folderContext || !window.folderContext.length) {
+            // Belum ada folder — minta upload dulu
+            addBotMessage("📂 **Belum ada konteks folder!**\n\nKlik tombol 📂 (folder) di area input untuk memilih folder yang berisi file-file bab skripsi Anda. AI akan otomatis mendeteksi bab mana yang sudah ada dan menyarankan bab berikutnya.");
+            return;
+        }
+        // Deteksi bab dari folderContext
+        const allText = window.folderContext.map(f => f.text).join(" ").toLowerCase();
+        const babDetected = [];
+        for (let i = 1; i <= 5; i++) {
+            if (allText.includes(`bab ${i}`) || allText.includes(`bab ${["i","ii","iii","iv","v"][i-1]}`)) babDetected.push(i);
+        }
+        const nextBab = babDetected.length ? Math.max(...babDetected) + 1 : 2;
+        const babLabel = ["I","II","III","IV","V"][nextBab-1] || nextBab;
+        const babNames = {
+            1: "Pendahuluan (Latar Belakang, Rumusan Masalah, Tujuan, Manfaat, Batasan)",
+            2: "Tinjauan Pustaka (Landasan Teori, Kajian Relevan, Kerangka Berpikir)",
+            3: "Metodologi Penelitian (Jenis Penelitian, Populasi & Sampel, Teknik Pengumpulan & Analisis Data)",
+            4: "Hasil dan Pembahasan (Deskripsi Data, Analisis, Interpretasi)",
+            5: "Penutup (Kesimpulan dan Saran)"
+        };
+        const babTitle = babNames[nextBab] || "Selanjutnya";
+        userInput.value = `Buatkan BAB ${babLabel} — ${babTitle}. Pastikan konten KONSISTEN dan merupakan LANJUTAN dari bab-bab yang sudah ada di konteks folder. Gunakan format skripsi Indonesia dengan paragraf yang lengkap dan referensi APA.`;
+        userInput.dispatchEvent(new Event('input', { bubbles: true }));
+        userInput.focus();
+        return;
+    }
     if (prompt === "TIMER")         { const p = document.getElementById("ppt-tools-panel"); if(p) p.classList.remove("hidden"); showToast("Timer ada di PPT Tools 🎤"); return; }
     if (prompt.startsWith("TABEL:"))  { insertTemplateTabel(prompt.split(":")[1]); return; }
 
