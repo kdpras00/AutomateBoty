@@ -4,7 +4,7 @@
  */
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
-const DEFAULT_API_KEY = "AIzaSyDM4fjZTT1F6Ux2D8anrQMe7SSShKVUgrQ";
+const DEFAULT_API_KEY = "";
 const INVALID_KEYS = ["AIzaSyCmSlRCCPgC1ph4vuco9hwLsTaDtnBPcSA","AIzaSyAmsulrYYqrxuWnlqwrn1UzHsPdTSedyR0"];
 let apiKey = localStorage.getItem("gemini_api_key") || DEFAULT_API_KEY;
 let currentLang = localStorage.getItem("ab_lang") || "ID";
