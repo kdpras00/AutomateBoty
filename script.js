@@ -336,7 +336,7 @@ async function callGeminiAPI(prompt) {
         throw new Error("Tidak ada koneksi internet.");
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1/models/${currentModel}:generateContent?key=${apiKey}`;
     const systemRole = buildSystemPrompt(Office.context.host, currentLang);
 
     // Bimbingan mode prefix
@@ -401,6 +401,8 @@ async function callGeminiAPI(prompt) {
             errMsg = "❌ **Kuota Habis (Rate Limit)**\nAnda mencapai batas kuota model ini. Silakan ganti ke model **Gemini 1.5 Flash** di Settings atau tunggu 1 menit.";
         } else if (res.status === 503 || res.status === 500) {
             errMsg = "❌ **Server Sibuk (Overloaded)**\nGoogle sedang kewalahan menangani permintaan. Mencoba beralih ke model 1.5 Flash mungkin membantu.";
+        } else if (res.status === 404) {
+            errMsg = "❌ **Model Tidak Ditemukan (404)**\nModel **" + currentModel + "** tidak lagi didukung atau tidak tersedia di region Anda. Silakan coba **Gemini 1.5 Flash** di Settings.";
         } else if (errText.includes("API_KEY_INVALID")) {
             errMsg = "❌ **API Key Tidak Valid**\nPeriksa kembali API Key Anda di Settings.";
         }
