@@ -6,7 +6,7 @@
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 const DEFAULT_API_KEY = "";
 const INVALID_KEYS = ["AIzaSyCmSlRCCPgC1ph4vuco9hwLsTaDtnBPcSA","AIzaSyAmsulrYYqrxuWnlqwrn1UzHsPdTSedyR0"];
-const DEFAULT_MODEL = "gemini-1.5-flash"; // Fallback ke yang lebih stabil
+const DEFAULT_MODEL = "gemini-2.0-flash"; // Balik ke 2.0 karena 1.5 mungkin sudah pensiun di 2026
 
 let apiKey = localStorage.getItem("gemini_api_key") || DEFAULT_API_KEY;
 let currentModel = localStorage.getItem("ab_model") || DEFAULT_MODEL;
@@ -336,7 +336,7 @@ async function callGeminiAPI(prompt) {
         throw new Error("Tidak ada koneksi internet.");
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1/models/${currentModel}:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
     const systemRole = buildSystemPrompt(Office.context.host, currentLang);
 
     // Bimbingan mode prefix
