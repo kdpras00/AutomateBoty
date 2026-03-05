@@ -45,7 +45,7 @@ Office.onReady((info) => {
     const v = document.createElement("div");
     v.className = "version-info";
     v.textContent = "v7.0 · AutomateBoty · 17 Fitur Baru";
-    document.querySelector(".app-container").appendChild(v);
+    document.querySelector(".layout").appendChild(v);
 });
 
 function updateHostBadge(host) {
