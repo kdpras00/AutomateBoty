@@ -3,13 +3,9 @@
  * Integrates: History, Presets, Rating, Bimbingan, Word/Excel/PPT tools
  */
 
-// ── CONFIG ────────────────────────────────────────────────────────────────────
 const DEFAULT_API_KEY = "";
 const INVALID_KEYS = ["AIzaSyCmSlRCCPgC1ph4vuco9hwLsTaDtnBPcSA","AIzaSyAmsulrYYqrxuWnlqwrn1UzHsPdTSedyR0"];
-const DEFAULT_MODEL = "gemini-2.0-flash"; // Balik ke 2.0 karena 1.5 mungkin sudah pensiun di 2026
-
 let apiKey = localStorage.getItem("gemini_api_key") || DEFAULT_API_KEY;
-let currentModel = localStorage.getItem("ab_model") || DEFAULT_MODEL;
 let currentLang = localStorage.getItem("ab_lang") || "ID";
 
 // ── DOM ───────────────────────────────────────────────────────────────────────
@@ -31,8 +27,8 @@ Office.onReady((info) => {
     if (saved && !INVALID_KEYS.includes(saved)) { apiInput.value = saved; apiKey = saved; }
     else { if (INVALID_KEYS.includes(saved)) localStorage.removeItem("gemini_api_key"); apiInput.value = DEFAULT_API_KEY; apiKey = DEFAULT_API_KEY; }
 
-    const modelSelect = document.getElementById("model-select");
-    if (modelSelect) modelSelect.value = currentModel;
+    // Bersihkan sisa-sisa model lama jika ada
+    localStorage.removeItem("ab_model");
 
     // Language
     document.getElementById("lang-toggle-btn").textContent = currentLang === "ID" ? "🇮🇩" : "🇬🇧";
@@ -126,16 +122,11 @@ function setupEventListeners() {
     if (saveBtn) {
         saveBtn.addEventListener("click", () => {
             const k = document.getElementById("api-key-input").value.trim();
-            const m = document.getElementById("model-select").value;
-            
             if (k) { 
                 apiKey = k; 
                 localStorage.setItem("gemini_api_key", k); 
+                showToast("✅ Pengaturan disimpan"); 
             }
-            
-            currentModel = m;
-            localStorage.setItem("ab_model", m);
-            showToast("✅ Pengaturan disimpan"); 
         });
     }
 
@@ -336,7 +327,7 @@ async function callGeminiAPI(prompt) {
         throw new Error("Tidak ada koneksi internet.");
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
     const systemRole = buildSystemPrompt(Office.context.host, currentLang);
 
     // Bimbingan mode prefix
@@ -402,7 +393,7 @@ async function callGeminiAPI(prompt) {
         } else if (res.status === 503 || res.status === 500) {
             errMsg = "❌ **Server Sibuk (Overloaded)**\nGoogle sedang kewalahan menangani permintaan. Mencoba beralih ke model 1.5 Flash mungkin membantu.";
         } else if (res.status === 404) {
-            errMsg = "❌ **Model Tidak Ditemukan (404)**\nModel **" + currentModel + "** tidak lagi didukung atau tidak tersedia di region Anda. Silakan coba **Gemini 1.5 Flash** di Settings.";
+            errMsg = "❌ **Error 404: Not Found**\nModel tidak ditemukan. Periksa settingan aplikasi.";
         } else if (errText.includes("API_KEY_INVALID")) {
             errMsg = "❌ **API Key Tidak Valid**\nPeriksa kembali API Key Anda di Settings.";
         }
