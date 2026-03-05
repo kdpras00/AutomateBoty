@@ -235,6 +235,13 @@
         <p class="panel-desc">Konfigurasi akun dan koneksi API.</p>
     </div>
     <div class="tool-group">
+        <label class="tool-group-label" style="display:block; margin-bottom:4px;">AI Model</label>
+        <select id="model-select" class="select-input" style="margin-bottom:12px;">
+            <option value="gemini-1.5-flash">Gemini 1.5 Flash (Stabil & Cepat)</option>
+            <option value="gemini-1.5-pro">Gemini 1.5 Pro (Pintar & Detail)</option>
+            <option value="gemini-2.0-flash">Gemini 2.0 Flash (Experimental)</option>
+        </select>
+        
         <label class="tool-group-label" style="display:block; margin-bottom:4px;">Gemini API Key</label>
         <div class="search-box">
             <input type="password" id="api-key-input" class="text-input" placeholder="Masukkan Gemini API Key">

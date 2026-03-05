@@ -6,7 +6,10 @@
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 const DEFAULT_API_KEY = "";
 const INVALID_KEYS = ["AIzaSyCmSlRCCPgC1ph4vuco9hwLsTaDtnBPcSA","AIzaSyAmsulrYYqrxuWnlqwrn1UzHsPdTSedyR0"];
+const DEFAULT_MODEL = "gemini-1.5-flash"; // Fallback ke yang lebih stabil
+
 let apiKey = localStorage.getItem("gemini_api_key") || DEFAULT_API_KEY;
+let currentModel = localStorage.getItem("ab_model") || DEFAULT_MODEL;
 let currentLang = localStorage.getItem("ab_lang") || "ID";
 
 // ── DOM ───────────────────────────────────────────────────────────────────────
@@ -27,6 +30,9 @@ Office.onReady((info) => {
     const apiInput = document.getElementById("api-key-input");
     if (saved && !INVALID_KEYS.includes(saved)) { apiInput.value = saved; apiKey = saved; }
     else { if (INVALID_KEYS.includes(saved)) localStorage.removeItem("gemini_api_key"); apiInput.value = DEFAULT_API_KEY; apiKey = DEFAULT_API_KEY; }
+
+    const modelSelect = document.getElementById("model-select");
+    if (modelSelect) modelSelect.value = currentModel;
 
     // Language
     document.getElementById("lang-toggle-btn").textContent = currentLang === "ID" ? "🇮🇩" : "🇬🇧";
@@ -120,11 +126,16 @@ function setupEventListeners() {
     if (saveBtn) {
         saveBtn.addEventListener("click", () => {
             const k = document.getElementById("api-key-input").value.trim();
+            const m = document.getElementById("model-select").value;
+            
             if (k) { 
                 apiKey = k; 
                 localStorage.setItem("gemini_api_key", k); 
-                showToast("✅ API Key disimpan"); 
             }
+            
+            currentModel = m;
+            localStorage.setItem("ab_model", m);
+            showToast("✅ Pengaturan disimpan"); 
         });
     }
 
@@ -325,7 +336,7 @@ async function callGeminiAPI(prompt) {
         throw new Error("Tidak ada koneksi internet.");
     }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${apiKey}`;
     const systemRole = buildSystemPrompt(Office.context.host, currentLang);
 
     // Bimbingan mode prefix
@@ -333,6 +344,9 @@ async function callGeminiAPI(prompt) {
 
     let docContext = "";
     try { docContext = await getDocumentContext(); } catch {}
+
+    // Optimasi: Batasi konteks dokumen agar tidak terlalu besar (TPM economy)
+    if (docContext.length > 3000) docContext = docContext.substring(0, 3000) + "... [truncated]";
 
     let filePart = null, fileText = "";
     if (window.currentFile) {
@@ -346,15 +360,17 @@ async function callGeminiAPI(prompt) {
         }
     }
 
-    // Folder context (multi-file)
+    // Folder context (multi-file) - Optimasi context per file
     let folderContextText = "";
     if (window.folderContext && window.folderContext.length) {
-        folderContextText = "\n\n[KONTEKS FOLDER — file-file pendukung yang sudah ada:]\n";
-        for (const fc of window.folderContext) {
-            folderContextText += `\n--- [${fc.name}] ---\n${fc.text}\n`;
+        folderContextText = "\n\n[KONTEKS FOLDER — file-file pendukung:]\n";
+        // Batasi jumlah file yang dikirim jika terlalu banyak (max 5 file terbaru/relevan)
+        const activeFiles = window.folderContext.slice(-5);
+        for (const fc of activeFiles) {
+            folderContextText += `\n--- [${fc.name}] ---\n${fc.text.substring(0, 2000)}\n`;
         }
         folderContextText += "\n[/KONTEKS FOLDER]\n";
-        folderContextText += "\nPenting: Gunakan konteks folder di atas sebagai referensi. Pastikan konten yang kamu hasilkan KONSISTEN, tidak mengulang yang sudah ada, dan merupakan LANJUTAN yang logis.\n";
+        folderContextText += "\nPenting: Gunakan konteks folder di atas sebagai referensi utama.\n";
     }
 
     const fullPrompt = bimbinganPrefix + systemRole + "\n\nKonteks Dokumen Aktif:\n" + docContext + folderContextText + fileText + "\n\nPermintaan: " + prompt;
@@ -379,7 +395,17 @@ async function callGeminiAPI(prompt) {
             return data.candidates[0]?.content?.parts?.[0]?.text || "Tidak ada respons.";
         }
         const errText = await res.text();
-        lastErr = new Error(`API Error (${res.status}): ${errText.substring(0, 200)}`);
+        let errMsg = `API Error (${res.status})`;
+        
+        if (res.status === 429) {
+            errMsg = "❌ **Kuota Habis (Rate Limit)**\nAnda mencapai batas kuota model ini. Silakan ganti ke model **Gemini 1.5 Flash** di Settings atau tunggu 1 menit.";
+        } else if (res.status === 503 || res.status === 500) {
+            errMsg = "❌ **Server Sibuk (Overloaded)**\nGoogle sedang kewalahan menangani permintaan. Mencoba beralih ke model 1.5 Flash mungkin membantu.";
+        } else if (errText.includes("API_KEY_INVALID")) {
+            errMsg = "❌ **API Key Tidak Valid**\nPeriksa kembali API Key Anda di Settings.";
+        }
+        
+        lastErr = new Error(errMsg);
         // Hanya retry untuk 503 (server overload) dan 429 (rate limit)
         if (res.status !== 503 && res.status !== 429) break;
     }
