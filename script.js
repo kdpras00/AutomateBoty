@@ -5,8 +5,8 @@
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 const DEFAULT_API_KEY = "";
-const INVALID_KEYS = ["AIzaSyCmSlRCCPgC1ph4vuco9hwLsTaDtnBPcSA","AIzaSyAmsulrYYqrxuWnlqwrn1UzHsPdTSedyR0"];
-const CURRENT_MODEL = "gemini-3-flash"; 
+// const INVALID_KEYS = ["AIzaSyCmSlRCCPgC1ph4vuco9hwLsTaDtnBPcSA","AIzaSyAmsulrYYqrxuWnlqwrn1UzHsPdTSedyR0"];
+const CURRENT_MODEL = "gemini-2.5-flash"; 
 
 let apiKey = localStorage.getItem("gemini_api_key") || DEFAULT_API_KEY;
 let currentLang = localStorage.getItem("ab_lang") || "ID";
