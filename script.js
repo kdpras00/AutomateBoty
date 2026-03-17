@@ -5,7 +5,6 @@
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 const DEFAULT_API_KEY = "";
-// const INVALID_KEYS = ["AIzaSyCmSlRCCPgC1ph4vuco9hwLsTaDtnBPcSA","AIzaSyAmsulrYYqrxuWnlqwrn1UzHsPdTSedyR0"];
 const CURRENT_MODEL = "gemini-2.5-flash"; 
 
 let apiKey = localStorage.getItem("gemini_api_key") || DEFAULT_API_KEY;
@@ -62,15 +61,19 @@ function showHostTools(host) {
     const navData = document.getElementById("nav-data");
     const navPresentation = document.getElementById("nav-presentation");
     const navTemplates = document.getElementById("nav-templates");
+    const layout = document.querySelector(".layout");
 
     if (host === Office.HostType.Word) {
+        if (layout) layout.classList.add("word-mode");
         if (navData) navData.style.display = "none";
         if (navPresentation) navPresentation.style.display = "none";
     } else if (host === Office.HostType.Excel) {
+        if (layout) layout.classList.add("excel-mode");
         if (navAcademic) navAcademic.style.display = "none";
         if (navPresentation) navPresentation.style.display = "none";
         if (navTemplates) navTemplates.style.display = "none";
     } else if (host === Office.HostType.PowerPoint) {
+        if (layout) layout.classList.add("ppt-mode");
         if (navAcademic) navAcademic.style.display = "none";
         if (navData) navData.style.display = "none";
         if (navTemplates) navTemplates.style.display = "none";
