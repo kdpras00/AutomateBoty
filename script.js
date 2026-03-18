@@ -6,7 +6,17 @@
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 const DEFAULT_API_KEY = "";
 const CURRENT_MODEL = "gemini-2.5-flash"; 
+const INVALID_KEYS = ["", "undefined", "null", "YOUR_API_KEY_HERE"];
 
+const ACTIONS = {
+    LANJUTKAN_BAB: "LANJUTKAN_BAB",
+    PARAFRASE: "PARAFRASE",
+    PROOFREADING: "PROOFREADING",
+    INTERPRETASI: "INTERPRETASI",
+    SLIDE_FROM_FILE: "SLIDE_FROM_FILE"
+};
+
+let isProcessing = false;
 let apiKey = localStorage.getItem("gemini_api_key") || DEFAULT_API_KEY;
 let currentLang = localStorage.getItem("ab_lang") || "ID";
 
@@ -30,7 +40,8 @@ Office.onReady((info) => {
     else { if (INVALID_KEYS.includes(saved)) localStorage.removeItem("gemini_api_key"); apiInput.value = DEFAULT_API_KEY; apiKey = DEFAULT_API_KEY; }
 
     // Language
-    document.getElementById("lang-toggle-btn").textContent = currentLang === "ID" ? "🇮🇩" : "🇬🇧";
+    const menuBtnEl = document.getElementById("menu-btn") || document.getElementById("lang-toggle-btn");
+    if (menuBtnEl) menuBtnEl.innerHTML = currentLang === "ID" ? "🇮🇩" : "🇬🇧";
 
     // Network
     updateNetworkStatus();
@@ -134,12 +145,13 @@ function setupEventListeners() {
     }
 
     // Main menu toggle (simulate lang toggle functionality or settings)
-    const menuBtn = document.getElementById("menu-btn");
+    const menuBtn = document.getElementById("menu-btn") || document.getElementById("lang-toggle-btn");
     if (menuBtn) {
         menuBtn.addEventListener("click", () => {
             currentLang = currentLang === "ID" ? "EN" : "ID";
             localStorage.setItem("ab_lang", currentLang);
             showToast(currentLang === "ID" ? "🇮🇩 Mode Indonesia aktif" : "🇬🇧 English mode active");
+            menuBtn.innerHTML = currentLang === "ID" ? "🇮🇩" : "🇬🇧";
         });
     }
 
@@ -283,8 +295,11 @@ window.clearFolderContext = function() {
 
 // ── MESSAGE HANDLING ──────────────────────────────────────────────────────────
 async function handleSendMessage() {
+    if (isProcessing) return;
     const text = userInput.value.trim();
     if (!text) return;
+    
+    isProcessing = true;
     addUserMessage(text);
     userInput.value = "";
     userInput.style.height = "auto";
@@ -311,7 +326,9 @@ async function handleSendMessage() {
         if (ind) ind.remove();
         const fi = document.getElementById("file-upload");
         if (fi) fi.value = "";
-        sendBtn.disabled = false;
+        
+        isProcessing = false;
+        sendBtn.disabled = !navigator.onLine;
         userInput.placeholder = "Tanya AutomateBoty..."; // reset placeholder
         userInput.focus();
     }
@@ -367,10 +384,15 @@ async function callGeminiAPI(prompt) {
         folderContextText += "\nPenting: Gunakan konteks folder di atas sebagai referensi utama.\n";
     }
 
-    const fullPrompt = bimbinganPrefix + systemRole + "\n\nKonteks Dokumen Aktif:\n" + docContext + folderContextText + fileText + "\n\nPermintaan: " + prompt;
+    const fullPrompt = bimbinganPrefix + "\n\nKonteks Dokumen Aktif:\n" + docContext + folderContextText + fileText + "\n\nPermintaan: " + prompt;
     const textPart = { text: fullPrompt };
     const parts = filePart ? [textPart, filePart] : [textPart];
-    const payload = { contents: [{ role: "user", parts }] };
+    
+    // Gunakan systemInstruction terpisah (Best Practice API v1beta Gemini)
+    const payload = { 
+        system_instruction: { parts: [{ text: systemRole }] },
+        contents: [{ role: "user", parts }] 
+    };
 
     // Retry dengan backoff untuk 503 / 429 (server sibuk / rate limit)
     const maxRetries = 3;
@@ -445,7 +467,12 @@ async function getDocumentContext() {
 }
 
 function fileToBase64(file) {
-    return new Promise((resolve) => { const r = new FileReader(); r.onloadend = () => resolve(r.result.split(",")[1]); r.readAsDataURL(file); });
+    return new Promise((resolve) => { 
+        const r = new FileReader(); 
+        r.onloadend = () => resolve(r.result.split(",")[1]); 
+        r.onerror = () => { console.error("Gagal base64", r.error); resolve(""); } 
+        r.readAsDataURL(file); 
+    });
 }
 
 async function fileToText(file) {
@@ -513,7 +540,11 @@ function addBotMessage(text, msgId) {
     const div = document.createElement("div");
     div.className = "message bot-message";
     if (msgId) div.id = msgId;
-    div.innerHTML = `<div class="message-content">${marked.parse(text)}</div>`;
+    
+    const dirtyHtml = marked.parse(text);
+    const cleanHtml = typeof DOMPurify !== "undefined" ? DOMPurify.sanitize(dirtyHtml) : dirtyHtml;
+    
+    div.innerHTML = `<div class="message-content">${cleanHtml}</div>`;
     div.querySelectorAll("pre code").forEach((b) => hljs.highlightElement(b));
 
     // Add rating buttons
@@ -541,9 +572,9 @@ function setupQuickActions(host) {
         actions = [
             { label: "📄 Jurnal ID",     prompt: "Buatkan jurnal ilmiah lengkap Bahasa Indonesia tentang {topic}. Sertakan Judul, Abstrak (ID+EN), Pendahuluan, Tinjauan Pustaka, Metodologi, Hasil & Pembahasan, Kesimpulan, Daftar Pustaka APA. Teks Inggris ditulis italic." },
             { label: "📜 Journal EN",    prompt: "Write a complete English academic journal about {topic}. Include Title, Abstract (EN+ID), Introduction, Literature Review, Methodology, Results, Conclusion, References (IEEE). English text in italic." },
-            { label: "📚 Lanjutkan Bab", prompt: "LANJUTKAN_BAB" },
-            { label: "✂️ Parafrase",    prompt: "PARAFRASE" },
-            { label: "🔍 Proofreading", prompt: "PROOFREADING" },
+            { label: "📚 Lanjutkan Bab", prompt: ACTIONS.LANJUTKAN_BAB },
+            { label: "✂️ Parafrase",    prompt: ACTIONS.PARAFRASE },
+            { label: "🔍 Proofreading", prompt: ACTIONS.PROOFREADING },
             { label: "📐 Outline",      prompt: "OUTLINE" },
             { label: "🎓 Bimbingan",    prompt: "BIMBINGAN" },
             { label: "🔖 Sitasi APA",   prompt: "Buatkan daftar pustaka format APA untuk: {topic}" },
@@ -558,7 +589,7 @@ function setupQuickActions(host) {
             { label: "🧮 Rumus",          prompt: "Buatkan rumus Excel untuk: " },
             { label: "📊 Statistik",       prompt: "Hitung N, Mean, Median, Std Dev, Min, Max, Range dari data terpilih. Format tabel." },
             { label: "📈 Regresi",         prompt: "REGRESI" },
-            { label: "📝 Interpretasi",    prompt: "INTERPRETASI" },
+            { label: "📝 Interpretasi",    prompt: ACTIONS.INTERPRETASI },
             { label: "📋 Tabel Frekuensi", prompt: "TABEL:frekuensi" },
             { label: "📋 Tabel Kuesioner", prompt: "TABEL:kuesioner" },
             { label: "🔍 Outlier",         prompt: "Analisis data terpilih: identifikasi outlier dan anomali. Berikan rekomendasi." },
@@ -568,7 +599,7 @@ function setupQuickActions(host) {
         ];
     } else if (host === Office.HostType.PowerPoint) {
         actions = [
-            { label: "🎯 PPT dari File",   prompt: "SLIDE_FROM_FILE" },
+            { label: "🎯 PPT dari File",   prompt: ACTIONS.SLIDE_FROM_FILE },
             { label: "📑 Outline 10 Slide",prompt: "Buatkan outline presentasi 10 slide dengan speaker notes tentang {topic}. Format JSON Array." },
             { label: "🎤 Slide + Notes",   prompt: "Buatkan slide presentasi dengan catatan pembicara tentang {topic}. Format JSON Array." },
             { label: "🎤 Timer Latihan",  prompt: "TIMER" },
@@ -596,14 +627,14 @@ function setupQuickActions(host) {
 
 function handleActionPill(prompt) {
     // Special commands
-    if (prompt === "PARAFRASE")     { const p = document.getElementById("word-tools-panel"); if(p){p.classList.remove("hidden"); document.getElementById("host-tools-btn")?.classList.add("active");} showToast("Pilih teks lalu klik level parafrase di Word Tools ✍️"); return; }
-    if (prompt === "PROOFREADING")  { proofreadingMendalam(); return; }
+    if (prompt === ACTIONS.PARAFRASE)     { const p = document.getElementById("word-tools-panel"); if(p){p.classList.remove("hidden"); document.getElementById("host-tools-btn")?.classList.add("active");} showToast("Pilih teks lalu klik level parafrase di Word Tools ✍️"); return; }
+    if (prompt === ACTIONS.PROOFREADING)  { proofreadingMendalam(); return; }
     if (prompt === "OUTLINE")       { openOutlineBuilder(); const p = document.getElementById("word-tools-panel"); if(p) p.classList.remove("hidden"); return; }
     if (prompt === "BIMBINGAN")     { toggleBimbinganSkripsi(); return; }
     if (prompt === "REGRESI")       { analisisRegresi(); return; }
-    if (prompt === "INTERPRETASI")  { interpretasiStatistik(); return; }
-    if (prompt === "SLIDE_FROM_FILE") { slideFromUploadedFile(); return; }
-    if (prompt === "LANJUTKAN_BAB") {
+    if (prompt === ACTIONS.INTERPRETASI)  { interpretasiStatistik(); return; }
+    if (prompt === ACTIONS.SLIDE_FROM_FILE) { slideFromUploadedFile(); return; }
+    if (prompt === ACTIONS.LANJUTKAN_BAB) {
         if (!window.folderContext || !window.folderContext.length) {
             // Belum ada folder — minta upload dulu
             addBotMessage("📂 **Belum ada konteks folder!**\n\nKlik tombol 📂 (folder) di area input untuk memilih folder yang berisi file-file bab skripsi Anda. AI akan otomatis mendeteksi bab mana yang sudah ada dan menyarankan bab berikutnya.");
