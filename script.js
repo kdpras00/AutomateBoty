@@ -13,7 +13,11 @@ const ACTIONS = {
     PARAFRASE: "PARAFRASE",
     PROOFREADING: "PROOFREADING",
     INTERPRETASI: "INTERPRETASI",
-    SLIDE_FROM_FILE: "SLIDE_FROM_FILE"
+    SLIDE_FROM_FILE: "SLIDE_FROM_FILE",
+    OUTLINE: "OUTLINE",
+    BIMBINGAN: "BIMBINGAN",
+    REGRESI: "REGRESI",
+    TIMER: "TIMER"
 };
 
 let isProcessing = false;
@@ -181,7 +185,7 @@ function setupEventListeners() {
             // Tampilkan file indicator di atas input
             const ind = document.createElement("div");
             ind.id = "file-indicator";
-            ind.innerHTML = `<span>📎 <strong>${file.name}</strong> <span style="color:var(--text-secondary);font-size:11px;">(${(file.size/1024).toFixed(1)} KB)</span></span><button id="remove-file-btn" style="background:none;border:none;cursor:pointer;color:#ef4444;font-weight:bold;margin-left:8px;">✕</button>`;
+            ind.innerHTML = `<span>📎 <strong>${escapeHtml(file.name)}</strong> <span style="color:var(--text-secondary);font-size:11px;">(${(file.size/1024).toFixed(1)} KB)</span></span><button id="remove-file-btn" style="background:none;border:none;cursor:pointer;color:#ef4444;font-weight:bold;margin-left:8px;">✕</button>`;
             document.querySelector(".input-area").parentElement.insertBefore(ind, document.querySelector(".input-area"));
             document.getElementById("remove-file-btn").addEventListener("click", () => {
                 window.currentFile = null;
@@ -200,7 +204,7 @@ function setupEventListeners() {
             const confirmMsg = document.createElement("div");
             confirmMsg.className = "message bot-message";
             confirmMsg.innerHTML = `<div class="message-content">📎 <strong>File berhasil diupload!</strong><br><br>
-<b>Nama:</b> ${file.name}<br>
+<b>Nama:</b> ${escapeHtml(file.name)}<br>
 <b>Tipe:</b> ${fileTypeLabel}<br>
 <b>Ukuran:</b> ${(file.size/1024).toFixed(1)} KB<br><br>
 <span style="color:var(--text-secondary); font-size:12px;">✏️ Sekarang ketik instruksi Anda di bawah — misalnya: <em>"Rangkum isi file ini"</em>, <em>"Buat jurnal berdasarkan file ini"</em>, atau <em>"Analisis data ini"</em>.</span></div>`;
@@ -272,7 +276,7 @@ function setupEventListeners() {
 
             // Tampilkan ringkasan di chat
             const fileListHtml = window.folderContext.map(f =>
-                `<li>📄 <strong>${f.name}</strong> <span style="color:var(--text-secondary);font-size:11px;">(${(f.size/1024).toFixed(1)} KB)</span></li>`
+                `<li>📄 <strong>${escapeHtml(f.name)}</strong> <span style="color:var(--text-secondary);font-size:11px;">(${(f.size/1024).toFixed(1)} KB)</span></li>`
             ).join("");
 
             const babInfo = babDetected.length
@@ -314,10 +318,11 @@ async function handleSendMessage() {
     userInput.style.height = "auto";
     sendBtn.disabled = true;
 
+    let loadingId = null;
     try {
-        const loadingId = addLoadingMessage();
+        loadingId = addLoadingMessage();
         const response = await callGeminiAPI(text);
-        removeMessage(loadingId);
+        if (loadingId) removeMessage(loadingId);
         const msgId = "msg-" + Date.now();
         addBotMessage(response, msgId);
         if (response && !response.startsWith("❌")) insertIntoDocument(response);
@@ -326,16 +331,16 @@ async function handleSendMessage() {
         if (typeof saveToHistory === "function") saveToHistory(text, response);
         // Cache for offline
         if (typeof cacheOffline === "function") cacheOffline("last_response", { q: text, a: response });
-    } catch (err) {
-        removeMessage("loading-msg");
-        addBotMessage(`❌ **Error**: ${err.message}\n\nPeriksa koneksi atau API Key.`);
-    } finally {
+        
         window.currentFile = null;
         const ind = document.getElementById("file-indicator");
         if (ind) ind.remove();
         const fi = document.getElementById("file-upload");
         if (fi) fi.value = "";
-        
+    } catch (err) {
+        if (loadingId) removeMessage(loadingId);
+        addBotMessage(`❌ **Error**: ${err.message}\n\nPeriksa koneksi atau API Key.`);
+    } finally {
         isProcessing = false;
         sendBtn.disabled = !navigator.onLine;
         userInput.placeholder = "Tanya AutomateBoty..."; // reset placeholder
@@ -603,8 +608,8 @@ function setupQuickActions(host) {
             { label: "📚 Lanjutkan Bab", prompt: ACTIONS.LANJUTKAN_BAB },
             { label: "✂️ Parafrase",    prompt: ACTIONS.PARAFRASE },
             { label: "🔍 Proofreading", prompt: ACTIONS.PROOFREADING },
-            { label: "📐 Outline",      prompt: "OUTLINE" },
-            { label: "🎓 Bimbingan",    prompt: "BIMBINGAN" },
+            { label: "📐 Outline",      prompt: ACTIONS.OUTLINE },
+            { label: "🎓 Bimbingan",    prompt: ACTIONS.BIMBINGAN },
             { label: "🔖 Sitasi APA",   prompt: "Buatkan daftar pustaka format APA untuk: {topic}" },
             { label: "🔖 Sitasi IEEE",  prompt: "Buatkan referensi format IEEE untuk: {topic}" },
             { label: "🌐 Ke Inggris",   prompt: "Translate teks yang dipilih ke Bahasa Inggris akademik. Hasil ditulis italic." },
@@ -616,7 +621,7 @@ function setupQuickActions(host) {
         actions = [
             { label: "🧮 Rumus",          prompt: "Buatkan rumus Excel untuk: " },
             { label: "📊 Statistik",       prompt: "Hitung N, Mean, Median, Std Dev, Min, Max, Range dari data terpilih. Format tabel." },
-            { label: "📈 Regresi",         prompt: "REGRESI" },
+            { label: "📈 Regresi",         prompt: ACTIONS.REGRESI },
             { label: "📝 Interpretasi",    prompt: ACTIONS.INTERPRETASI },
             { label: "📋 Tabel Frekuensi", prompt: "TABEL:frekuensi" },
             { label: "📋 Tabel Kuesioner", prompt: "TABEL:kuesioner" },
@@ -630,7 +635,7 @@ function setupQuickActions(host) {
             { label: "🎯 PPT dari File",   prompt: ACTIONS.SLIDE_FROM_FILE },
             { label: "📑 Outline 10 Slide",prompt: "Buatkan outline presentasi 10 slide dengan speaker notes tentang {topic}. Format JSON Array." },
             { label: "🎤 Slide + Notes",   prompt: "Buatkan slide presentasi dengan catatan pembicara tentang {topic}. Format JSON Array." },
-            { label: "🎤 Timer Latihan",  prompt: "TIMER" },
+            { label: "🎤 Timer Latihan",  prompt: ACTIONS.TIMER },
             { label: "🌐 Translate Slide", prompt: "Translate konten slide ini ke Bahasa Indonesia: " },
             { label: "✨ Perbaiki Teks",   prompt: "Perbaiki grammar dan profesionalitas teks slide ini: " },
         ];
@@ -657,9 +662,9 @@ function handleActionPill(prompt) {
     // Special commands
     if (prompt === ACTIONS.PARAFRASE)     { const p = document.getElementById("word-tools-panel"); if(p){p.classList.remove("hidden"); document.getElementById("host-tools-btn")?.classList.add("active");} showToast("Pilih teks lalu klik level parafrase di Word Tools ✍️"); return; }
     if (prompt === ACTIONS.PROOFREADING)  { proofreadingMendalam(); return; }
-    if (prompt === "OUTLINE")       { openOutlineBuilder(); const p = document.getElementById("word-tools-panel"); if(p) p.classList.remove("hidden"); return; }
-    if (prompt === "BIMBINGAN")     { toggleBimbinganSkripsi(); return; }
-    if (prompt === "REGRESI")       { analisisRegresi(); return; }
+    if (prompt === ACTIONS.OUTLINE)       { openOutlineBuilder(); const p = document.getElementById("word-tools-panel"); if(p) p.classList.remove("hidden"); return; }
+    if (prompt === ACTIONS.BIMBINGAN)     { toggleBimbinganSkripsi(); return; }
+    if (prompt === ACTIONS.REGRESI)       { analisisRegresi(); return; }
     if (prompt === ACTIONS.INTERPRETASI)  { interpretasiStatistik(); return; }
     if (prompt === ACTIONS.SLIDE_FROM_FILE) { slideFromUploadedFile(); return; }
     if (prompt === ACTIONS.LANJUTKAN_BAB) {
@@ -689,7 +694,7 @@ function handleActionPill(prompt) {
         userInput.focus();
         return;
     }
-    if (prompt === "TIMER")         { const p = document.getElementById("ppt-tools-panel"); if(p) p.classList.remove("hidden"); showToast("Timer ada di PPT Tools 🎤"); return; }
+    if (prompt === ACTIONS.TIMER)         { const p = document.getElementById("ppt-tools-panel"); if(p) p.classList.remove("hidden"); showToast("Timer ada di PPT Tools 🎤"); return; }
     if (prompt.startsWith("TABEL:"))  { insertTemplateTabel(prompt.split(":")[1]); return; }
 
     const curr = userInput.value.trim();
@@ -949,6 +954,7 @@ window.applyBuiltinTemplate = function(type) {
 
 // ── CITATION ──────────────────────────────────────────────────────────────────
 window.insertCitation = async function(style) {
+    if (isProcessing) { showToast("⏳ Tunggu respons selesai dulu"); return; }
     const input = document.getElementById("citation-input").value.trim();
     if (!input) { showToast("⚠️ Masukkan info referensi!"); return; }
     showToast("⏳ Memformat sitasi...");
