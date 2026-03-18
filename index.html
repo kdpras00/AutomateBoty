@@ -31,6 +31,7 @@
         <span id="host-badge" class="host-badge">...</span>
     </div>
     <div class="header-actions">
+        <button id="lang-toggle-btn" class="icon-btn" title="Ganti Bahasa">🇮🇩</button>
         <button id="menu-btn" class="icon-btn" title="Menu">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 12H20M4 6H20M4 18H20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
@@ -109,7 +110,7 @@
             <option value="Makalah">Makalah</option>
             <option value="Artikel">Artikel</option>
         </select>
-        <textarea id="outline-topic-input" placeholder="Topik penelitian..." rows="2" style="margin-top:8px;"></textarea>
+        <textarea id="outline-topic-input" class="text-input" placeholder="Topik penelitian..." rows="2" style="margin-top:8px;"></textarea>
         <button class="btn-primary" style="margin-top:8px;width:100%;" onclick="generateOutline()">Buat Outline Struktur</button>
         <div id="outline-result" style="margin-top:8px;"></div>
     </div>

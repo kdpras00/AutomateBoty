@@ -40,8 +40,8 @@ Office.onReady((info) => {
     else { if (INVALID_KEYS.includes(saved)) localStorage.removeItem("gemini_api_key"); apiInput.value = DEFAULT_API_KEY; apiKey = DEFAULT_API_KEY; }
 
     // Language
-    const menuBtnEl = document.getElementById("menu-btn") || document.getElementById("lang-toggle-btn");
-    if (menuBtnEl) menuBtnEl.innerHTML = currentLang === "ID" ? "🇮🇩" : "🇬🇧";
+    const langBtnEl = document.getElementById("lang-toggle-btn");
+    if (langBtnEl) langBtnEl.innerHTML = currentLang === "ID" ? "🇮🇩" : "🇬🇧";
 
     // Network
     updateNetworkStatus();
@@ -55,7 +55,7 @@ Office.onReady((info) => {
     const v = document.createElement("div");
     v.className = "version-info";
     v.textContent = "v7.0 · AutomateBoty · 17 Fitur Baru";
-    document.querySelector(".app-container").appendChild(v);
+    document.querySelector(".layout").appendChild(v);
 });
 
 function updateHostBadge(host) {
@@ -144,14 +144,23 @@ function setupEventListeners() {
         });
     }
 
-    // Main menu toggle (simulate lang toggle functionality or settings)
-    const menuBtn = document.getElementById("menu-btn") || document.getElementById("lang-toggle-btn");
-    if (menuBtn) {
-        menuBtn.addEventListener("click", () => {
+    // Language toggle
+    const langBtn = document.getElementById("lang-toggle-btn");
+    if (langBtn) {
+        langBtn.addEventListener("click", () => {
             currentLang = currentLang === "ID" ? "EN" : "ID";
             localStorage.setItem("ab_lang", currentLang);
             showToast(currentLang === "ID" ? "🇮🇩 Mode Indonesia aktif" : "🇬🇧 English mode active");
-            menuBtn.innerHTML = currentLang === "ID" ? "🇮🇩" : "🇬🇧";
+            langBtn.innerHTML = currentLang === "ID" ? "🇮🇩" : "🇬🇧";
+        });
+    }
+
+    // Main menu toggle
+    const menuBtn = document.getElementById("menu-btn");
+    if (menuBtn) {
+        menuBtn.addEventListener("click", () => {
+            // TODO: Buka modal navigasi menu sebenarnya (misal Settings/About)
+            showToast(currentLang === "ID" ? "Menu belum di-layout" : "Menu coming soon");
         });
     }
 
@@ -437,9 +446,13 @@ function buildSystemPrompt(host, lang) {
             ? `You are an expert academic writer. Rules: 1) Use Markdown. 2) English text ALWAYS in *italic*. 3) For journals: Title, Abstract (EN+ID), Introduction, Literature Review, Methodology, Results & Discussion, Conclusion, References (IEEE). 4) Citations: IEEE format. 5) Output ONLY document content. 6) If user requests document formatting like A4 paper, two columns, or specific font/alignment/margins, output a JSON block AT THE VERY BEGINNING like: \`\`\`json\n{"layout": {"paperSize": "A4", "columns": 2, "font": "Times New Roman", "alignment": "justified", "margins": {"top": 85, "bottom": 70, "left": 85, "right": 70}}}\n\`\`\` before the text.`
             : `Kamu adalah penulis akademis ahli. Aturan: 1) Gunakan Markdown. 2) Teks Inggris SELALU *italic*. 3) Untuk jurnal: Judul, Abstrak (ID+EN), Pendahuluan, Tinjauan Pustaka, Metodologi, Hasil & Pembahasan, Kesimpulan, Daftar Pustaka (APA). 4) Sitasi: format APA. 5) Output HANYA konten dokumen. 6) Jika user meminta format dokumen seperti kertas A4, margin (3-3-2.5-2.5), dua kolom, font khusus, atau teks justify/rata kiri-kanan, keluarkan blok JSON DI PALING ATAS seperti: \`\`\`json\n{"layout": {"paperSize": "A4", "columns": 2, "font": "Times New Roman", "alignment": "justified", "margins": {"top": 85, "bottom": 70, "left": 85, "right": 70}}}\n\`\`\` sebelum menyajikan teks.`;
     } else if (host === Office.HostType.Excel) {
-        return `Kamu adalah Excel Expert. Aturan: 1) Formula: output HANYA rumus dimulai =. 2) Data/tabel: CSV atau Markdown table. 3) Statistik: hitung N,Mean,Median,StdDev,Min,Max,Range dalam format tabel. 4) Interpretasi: narasi profesional. 5) Tanpa filler.`;
+        return isEN
+            ? `You are an Excel Expert. Rules: 1) Formulas: output ONLY formulas starting with =. 2) Data/tables: use CSV or Markdown table format. 3) Stats: calculate N, Mean, Median, StdDev, Min, Max, Range. 4) Interpret with professional narrative. 5) No filler text.`
+            : `Kamu adalah Excel Expert. Aturan: 1) Formula: output HANYA rumus dimulai =. 2) Data/tabel: CSV atau Markdown table. 3) Statistik: hitung N,Mean,Median,StdDev,Min,Max,Range dalam format tabel. 4) Interpretasi: narasi profesional. 5) Tanpa filler.`;
     } else if (host === Office.HostType.PowerPoint) {
-        return `Kamu adalah Presentation Expert. Aturan: 1) Multi-slide: JSON Array [{"title":"...","points":["..."],"notes":"..."}]. 2) Single: TITLE:[Judul]\\n- Poin. 3) Notes: 2-3 kalimat informatif per slide. 4) Tanpa Markdown.`;
+        return isEN
+            ? `You are a Presentation Expert. Rules: 1) Multi-slide: JSON Array [{"title":"...","points":["..."],"notes":"..."}]. 2) Single slide: TITLE:[title]\\n- Bullet points. 3) Speaker notes: 2-3 informative sentences. 4) No Markdown.`
+            : `Kamu adalah Presentation Expert. Aturan: 1) Multi-slide: JSON Array [{"title":"...","points":["..."],"notes":"..."}]. 2) Single: TITLE:[Judul]\\n- Poin. 3) Notes: 2-3 kalimat informatif per slide. 4) Tanpa Markdown.`;
     }
     return "Kamu adalah asisten AI yang membantu mahasiswa. Jawab dengan ringkas dan akurat dalam Bahasa Indonesia.";
 }
@@ -457,8 +470,16 @@ async function getDocumentContext() {
             }).catch(() => resolve(""));
         } else if (host === Office.HostType.Excel) {
             Excel.run(async (ctx) => {
-                const range = ctx.workbook.getSelectedRange(); range.load("text"); await ctx.sync();
-                resolve(range.text.map(r => r.join(", ")).join("\n"));
+                const range = ctx.workbook.getSelectedRange();
+                range.load(["rowCount", "columnCount"]);
+                await ctx.sync();
+                const limited = range.getResizedRange(
+                    Math.min(range.rowCount, 100) - 1,
+                    Math.min(range.columnCount, 20) - 1
+                );
+                limited.load("text"); 
+                await ctx.sync();
+                resolve(limited.text.map(r => r.join(", ")).join("\n"));
             }).catch(() => resolve(""));
         } else {
             Office.context.document.getSelectedDataAsync(Office.CoercionType.Text, (res) => resolve(res.status === Office.AsyncResultStatus.Succeeded ? res.value : ""));
@@ -516,7 +537,12 @@ async function fileToText(file) {
     }
 
     // Default: baca sebagai teks biasa (.txt, .csv, .md, .json, .js, .py, dll)
-    return new Promise((resolve) => { const r = new FileReader(); r.onload = (e) => resolve(e.target.result); r.readAsText(file); });
+    return new Promise((resolve, reject) => { 
+        const r = new FileReader(); 
+        r.onload = (e) => resolve(e.target.result); 
+        r.onerror = () => reject(new Error("Gagal membaca file: " + file.name)); 
+        r.readAsText(file); 
+    });
 }
 
 // ── UI HELPERS ────────────────────────────────────────────────────────────────
@@ -530,7 +556,9 @@ function addUserMessage(text) {
 function addLoadingMessage() {
     const id = "loading-" + Date.now();
     const div = document.createElement("div"); div.id = id; div.className = "message bot-message";
-    div.innerHTML = `<div class="message-content"><span style="animation:fadeIn 1s infinite"></span> Memproses...</div>`;
+    div.innerHTML = `<div class="message-content">
+      <div class="typing-dots"><span></span><span></span><span></span></div>
+    </div>`;
     chatContainer.appendChild(div); scrollToBottom(); return id;
 }
 
@@ -743,9 +771,10 @@ function insertIntoDocument(text) {
             }
 
             // Insert HTML
-            const html = marked.parse(cleanText);
+            const html = typeof marked !== "undefined" ? marked.parse(cleanText) : cleanText;
             const selection = ctx.document.getSelection();
             const range = selection.insertHtml(html, Word.InsertLocation.after);
+            await ctx.sync();
             
             // Try to format text (Body font style & Alignment)
             if (layoutCmds) {
@@ -794,9 +823,11 @@ function insertIntoDocument(text) {
         else if (low.includes("statistik") || low.includes("mean") || low.includes("median") || low.includes("regresi")) runExcelStatInsert(text);
         else runExcelDataGen(text);
     } else if (host === Office.HostType.PowerPoint) {
-        Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text }, (res) => {
-            if (res.status === Office.AsyncResultStatus.Failed) runPowerPointSlideGen(text);
-        });
+        if (text.trim().startsWith("[") || text.includes('"title"')) {
+            runPowerPointSlideGen(text);
+        } else {
+            Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text });
+        }
     }
 }
 
@@ -814,15 +845,38 @@ async function runExcelDataGen(text) {
     if (rows[0].includes("|")) { delim = "|"; rows = rows.filter(r => !r.includes("---")); }
     const matrix = rows.map(r => r.split(delim).map(c => c.trim().replace(/^\||\|$/g, "")));
     if (!matrix.length) return;
+    
+    // Normalisasi columns to avoid inconsistent slice errors in API
+    const maxCols = Math.max(...matrix.map(r => r.length));
+    const normalized = matrix.map(r => { while (r.length < maxCols) r.push(""); return r; });
+
     await Excel.run(async (ctx) => {
-        const tgt = ctx.workbook.getSelectedRange().getResizedRange(matrix.length - 1, matrix[0].length - 1);
-        tgt.values = matrix; tgt.format.autofitColumns(); await ctx.sync(); showToast(`✅ ${matrix.length} baris disisipkan!`);
+        const tgt = ctx.workbook.getSelectedRange().getResizedRange(normalized.length - 1, maxCols - 1);
+        tgt.values = normalized; 
+        
+        // Auto-format header row
+        if (normalized.length > 1) {
+            const headerRow = tgt.getRow(0);
+            headerRow.format.fill.color = "#3b82f6";
+            headerRow.format.font.color = "white";
+            headerRow.format.font.bold = true;
+        }
+
+        tgt.format.autofitColumns(); 
+        await ctx.sync(); 
+        showToast(`✅ ${matrix.length} baris disisipkan!`);
     }).catch(console.error);
 }
 
 async function runExcelStatInsert(text) {
     let rows = text.split("\n").filter(r => r.includes("|") && !r.includes("---"));
-    if (!rows.length) { Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text }); return; }
+    if (!rows.length) {
+        await Excel.run(async (ctx) => {
+            ctx.workbook.getSelectedRange().values = [[text.substring(0, 32767)]];
+            await ctx.sync();
+        });
+        return;
+    }
     const matrix = rows.map(r => r.split("|").map(c => c.trim()).filter(c => c !== ""));
     await Excel.run(async (ctx) => {
         const tgt = ctx.workbook.getSelectedRange().getResizedRange(matrix.length - 1, matrix[0].length - 1);
@@ -853,8 +907,14 @@ async function runPowerPointSlideGen(text) {
     await PowerPoint.run(async (ctx) => {
         for (const data of slidesData) {
             const slide = ctx.presentation.slides.add();
-            slide.shapes.getItemAt(0).textFrame.textRange.text = data.title || "Slide";
-            slide.shapes.getItemAt(1).textFrame.textRange.text = Array.isArray(data.points) ? data.points.join("\n") : (data.points || "");
+            await ctx.sync();
+            const titleShape = slide.shapes.addTextBox(data.title || "Slide", { left: 50, top: 50, width: 580, height: 80 });
+            titleShape.textFrame.textRange.font.size = 28;
+            titleShape.textFrame.textRange.font.bold = true;
+            
+            const pointsText = Array.isArray(data.points) ? data.points.join("\n") : (data.points || "");
+            const bodyShape = slide.shapes.addTextBox(pointsText, { left: 50, top: 150, width: 580, height: 280 });
+            bodyShape.textFrame.textRange.font.size = 18;
         }
         await ctx.sync(); showToast(`✅ ${slidesData.length} slide dibuat!`);
     }).catch((err) => { console.error(err); Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text }); });
@@ -875,7 +935,8 @@ window.applyBuiltinTemplate = function(type) {
     if (!content) return;
     Word.run(async (ctx) => {
         ctx.document.body.clear();
-        ctx.document.body.insertText(content, Word.InsertLocation.start);
+        const html = typeof marked !== "undefined" ? marked.parse(content) : content;
+        ctx.document.body.insertHtml(html, Word.InsertLocation.start);
         await ctx.sync();
         showToast("✅ Template diterapkan!");
     }).catch(() => showToast("❌ Gagal menerapkan template"));
