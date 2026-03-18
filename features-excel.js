@@ -82,7 +82,7 @@ window.analisisRegresi = async function() {
     try {
         const narasi = await callGeminiAPI(narasiPrompt);
         addBotMessage(`## Interpretasi Regresi\n\n${narasi}`);
-        saveToHistory("Analisis Regresi", nerasi);
+        saveToHistory("Analisis Regresi", narasi);
     } catch {}
 };
 
