@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Versi sumber untuk cache-busting. Naikkan saat ada perubahan besar pada skrip.
-const SCRIPT_VERSION = '16';
+const SCRIPT_VERSION = '17';
 
 function buildIndex() {
     console.log("Building index.html from components...");
