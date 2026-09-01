@@ -35,7 +35,8 @@
   <Permissions>ReadWriteDocument</Permissions>
 
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
-    
+    <Hosts>
+
     <!-- Word Host w/ Task Pane -->
     <Host xsi:type="Document">
       <DesktopFormFactor>
@@ -142,6 +143,8 @@
             </ExtensionPoint>
         </DesktopFormFactor>
     </Host>
+
+    </Hosts>
 
     <!-- Resources -->
     <Resources>
