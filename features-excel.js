@@ -128,7 +128,7 @@ window.interpretasiStatistik = async function() {
         const result = await callGeminiAPI(prompt);
         addBotMessage(result);
         if (Office.context.host === Office.HostType.Word) {
-            Office.context.document.setSelectedDataAsync(marked.parse(result), { coercionType: Office.CoercionType.Html });
+            Office.context.document.setSelectedDataAsync(safeHtmlForWord(result), { coercionType: Office.CoercionType.Html });
         }
         saveToHistory("Interpretasi Statistik", result);
     } catch (e) { addBotMessage("❌ Gagal: " + e.message); }
@@ -168,6 +168,17 @@ const EXCEL_TEMPLATES = {
     ],
 };
 
+// Geser referensi angka baris pada rumus Excel sebesar `offset` (0-based).
+// Mis. "=SUM(B2:D2)" dengan offset 5 → "=SUM(B7:D7)".
+// Cell yang ditulis sebagai teks / bukan "=" dibiarkan.
+function shiftFormulaRows(formula, offset) {
+    if (typeof formula !== "string" || !formula.startsWith("=")) return formula;
+    return formula.replace(/([A-Z]{1,3})(\d+)/g, (m, col, row) => {
+        const r = parseInt(row, 10) + offset;
+        return col + r;
+    });
+}
+
 window.insertTemplateTabel = async function(type) {
     const template = EXCEL_TEMPLATES[type];
     if (!template) { showToast("⚠️ Template tidak ditemukan"); return; }
@@ -179,7 +190,17 @@ window.insertTemplateTabel = async function(type) {
         await ctx.sync();
 
         const tgt = ws.getRangeByIndexes(sel.rowIndex, sel.columnIndex, template.length, template[0].length);
-        tgt.values = template;
+
+        // Gunakan .formulas (coercion string) untuk SEMUA sel:
+        // - sel non-formula ditulis sebagai teks literal (bukan "=...")
+        // - sel berisi "=..." menjadi formula sungguhan yang dihitung Excel
+        // offset = sel.rowIndex (0-based) → referensi baris pada template digeser
+        // agar selalu mengarah ke baris yang benar di mana pun tabel disisipkan.
+        // (Tidak memakai .values agar tidak menimpa/konflik dengan .formulas.)
+        const formulas = template.map(row => row.map(v =>
+            (typeof v === "string" && v.startsWith("=")) ? shiftFormulaRows(v, sel.rowIndex) : v
+        ));
+        tgt.formulas = formulas;
         tgt.format.autofitColumns();
 
         // Style header row

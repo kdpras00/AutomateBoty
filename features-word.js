@@ -129,12 +129,23 @@ function getBimbinganPrefix() {
 window.getBimbinganPrefix = getBimbinganPrefix;
 
 // ── OUTLINE BUILDER INTERAKTIF ────────────────────────────────────────────────
+// Sanitasi HTML hasil marked.parse sebelum dimasukkan ke dokumen Word,
+// agar konsisten dengan path lain (DOMPurify). Mencegah konten berbahaya dari AI.
+function sanitizeForWord(markdownText) {
+    const rawHtml = typeof marked !== "undefined" ? marked.parse(markdownText) : markdownText;
+    if (typeof DOMPurify !== "undefined") {
+        return DOMPurify.sanitize(rawHtml, {
+            ALLOWED_TAGS: ["p","br","strong","em","b","i","u","h1","h2","h3","h4","ul","ol","li","blockquote","hr","table","tr","td","th","thead","tbody","a","span"],
+            ALLOWED_ATTR: ["href","style"],
+            ALLOW_DATA_ATTR: false
+        });
+    }
+    return rawHtml;
+}
+
 window.openOutlineBuilder = function() {
     const panel = document.getElementById("outline-builder-panel");
-    if (panel) {
-        panel.classList.toggle("hidden");
-        document.getElementById("outline-btn").classList.toggle("active", !panel.classList.contains("hidden"));
-    }
+    if (panel) panel.classList.toggle("hidden");
 };
 
 window.generateOutline = async function() {
@@ -181,7 +192,12 @@ function renderOutline(data) {
 }
 
 function escapeForAttr(value) {
-    return String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, "&quot;");
+    return String(value)
+        .replace(/\\/g, "\\\\")
+        .replace(/'/g, "\\'")
+        .replace(/"/g, "&quot;")
+        .replace(/\n/g, " ")
+        .replace(/\r/g, " ");
 }
 
 window.toggleOutlineChapter = function(i) {
@@ -198,7 +214,7 @@ window.expandChapter = async function(i, title) {
         const result = await callGeminiAPI(prompt);
         addBotMessage(result);
         if (Office.context.host === Office.HostType.Word) {
-            const html = marked.parse(result);
+            const html = sanitizeForWord(marked.parse(result));
             Office.context.document.setSelectedDataAsync(html, { coercionType: Office.CoercionType.Html });
         }
     } catch (e) { addBotMessage(`❌ Gagal: ${e.message}`); }
@@ -206,6 +222,6 @@ window.expandChapter = async function(i, title) {
 
 window.insertOutlineToDoc = function() {
     if (!outlineData || Office.context.host !== Office.HostType.Word) { showToast("⚠️ Perlu Microsoft Word"); return; }
-    const html = marked.parse(`# ${outlineData.title}\n\n${outlineData.chapters.map(ch => `## ${ch.num}: ${ch.title}\n${ch.sections.map(s => `- ${s}`).join("\n")}`).join("\n\n")}`);
+    const html = sanitizeForWord(marked.parse(`# ${outlineData.title}\n\n${outlineData.chapters.map(ch => `## ${ch.num}: ${ch.title}\n${ch.sections.map(s => `- ${s}`).join("\n")}`).join("\n\n")}`));
     Office.context.document.setSelectedDataAsync(html, { coercionType: Office.CoercionType.Html }, () => showToast("✅ Outline dimasukkan ke dokumen!"));
 };

@@ -46,7 +46,8 @@ window.loadHistoryItem = function(index) {
     if (!item) return;
     addUserMessage(item.q);
     addBotMessage(item.a);
-    document.getElementById("history-panel").classList.add("hidden");
+    const panel = document.getElementById("history-panel");
+    if (panel) panel.classList.add("hidden");
     const historyBtn = document.getElementById("history-btn") || document.getElementById("nav-history");
     if (historyBtn) historyBtn.classList.remove("active");
 };
@@ -94,7 +95,8 @@ window.usePreset = function(index) {
     userInput.value = p.prompt;
     userInput.dispatchEvent(new Event('input', { bubbles: true }));
     userInput.focus();
-    document.getElementById("settings-panel").classList.add("hidden");
+    const settingsPanel = document.getElementById("settings-panel");
+    if (settingsPanel) settingsPanel.classList.add("hidden");
     const settingsBtn = document.getElementById("nav-settings");
     if(settingsBtn) settingsBtn.classList.remove("active");
 };
@@ -108,7 +110,8 @@ window.deletePreset = function(index) {
 };
 
 window.saveCurrentAsPreset = function() {
-    const input = document.getElementById("user-input").value.trim();
+    const userInput = document.getElementById("user-input");
+    const input = userInput ? userInput.value.trim() : "";
     const nameInput = document.getElementById("preset-name-input");
     const name = nameInput ? nameInput.value.trim() : "";
     if (!input) { showToast("⚠️ Ketik prompt dulu di kotak chat!"); return; }
@@ -200,10 +203,6 @@ window.closeTour = function() {
 
 // ── PANEL TOGGLE SETUP ────────────────────────────────────────────────────────
 function setupExtraPanels() {
-    // Help / Re-tour (fallback if exists)
-    const helpBtn = document.getElementById("help-btn");
-    if (helpBtn) helpBtn.addEventListener("click", startOnboarding);
-
     // Onboarding first time
     if (!localStorage.getItem(ONBOARD_KEY)) setTimeout(startOnboarding, 800);
 }

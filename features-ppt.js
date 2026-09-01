@@ -76,11 +76,8 @@ window.slideFromUploadedFile = async function() {
     let content = "";
 
     try {
-        content = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (e) => resolve(e.target.result);
-            reader.readAsText(file);
-        });
+        // Pakai fileToText agar .docx/.pdf/.pptx ter-parse dengan benar (bukan biner)
+        content = await fileToText(file);
     } catch { showToast("❌ Gagal membaca file"); return; }
 
     // Trim to reasonable length
@@ -150,8 +147,10 @@ window.stopPracticeTimer = function() {
     const em = Math.floor(elapsed / 60), es = elapsed % 60;
     const display = document.getElementById("timer-display");
     if (display) { display.textContent = "⏸ Berhenti"; display.style.color = "#94a3b8"; }
-    document.getElementById("timer-start-btn").disabled = false;
-    document.getElementById("timer-stop-btn").disabled = true;
+    const startBtn = document.getElementById("timer-start-btn");
+    const stopBtn  = document.getElementById("timer-stop-btn");
+    if (startBtn) startBtn.disabled = false;
+    if (stopBtn)  stopBtn.disabled  = true;
     if (elapsed > 0) addBotMessage(`⏸ Timer dihentikan setelah **${em}m ${es}s**.`);
 };
 
@@ -165,6 +164,8 @@ window.resetPracticeTimer = function() {
         display.textContent = `${menit.toString().padStart(2,"0")}:00`;
         display.style.color = "#10b981";
     }
-    document.getElementById("timer-start-btn").disabled = false;
-    document.getElementById("timer-stop-btn").disabled = true;
+    const startBtn = document.getElementById("timer-start-btn");
+    const stopBtn  = document.getElementById("timer-stop-btn");
+    if (startBtn) startBtn.disabled = false;
+    if (stopBtn)  stopBtn.disabled  = true;
 };

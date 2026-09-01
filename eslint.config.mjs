@@ -42,6 +42,8 @@ export default [
         setupQuickActions: "readonly",
         updateNetworkStatus: "readonly",
         insertIntoDocument: "readonly",
+        fileToText: "readonly",
+        safeHtmlForWord: "readonly",
         proofreadingMendalam: "readonly",
         openOutlineBuilder: "readonly",
         toggleBimbinganSkripsi: "readonly",

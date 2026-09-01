@@ -973,6 +973,32 @@ function extractBareLayoutJson(text) {
     return null;
 }
 
+// Sanitasi HTML hasil marked.parse sebelum disisipkan ke dokumen Word.
+function safeHtmlForWord(markdownText) {
+    const rawHtml = typeof marked !== "undefined" ? marked.parse(markdownText) : markdownText;
+    if (typeof DOMPurify !== "undefined") {
+        return DOMPurify.sanitize(rawHtml, { ALLOWED_TAGS: ["p","br","strong","em","b","i","u","h1","h2","h3","h4","ul","ol","li","blockquote","hr","table","tr","td","th","thead","tbody"], ALLOWED_ATTR: [], ALLOW_DATA_ATTR: false });
+    }
+    return rawHtml;
+}
+
+// Deteksi apakah respons berupa data tabel (markdown pipe atau CSV numerik)
+// agar penyisipan Excel tidak menimpa seleksi dengan teks percakapan biasa.
+function looksLikeTable(text) {
+    if (typeof text !== "string") return false;
+    const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+    if (!lines.length) {
+        // teks satu baris tapi diawali "=" → formula
+        return /^=/.test(text.trim());
+    }
+    const pipeLines = lines.filter(l => l.includes("|"));
+    if (pipeLines.length >= 2) return true;
+    const csvLines = lines.filter(l => /[+-]?\d/.test(l) && l.includes(","));
+    if (csvLines.length >= 2) return true;
+    // baris terpisah koma 2+ kolom dalam satu baris utuh (masih berupa angka)
+    return /^=/.test(text.trim()) || /(?:,\s*|;\s*)[+-]?\d/.test(text);
+}
+
 function insertIntoDocument(text) {
     const host = Office.context.host;
     if (host === Office.HostType.Word) {
@@ -1003,14 +1029,6 @@ function insertIntoDocument(text) {
 
                 } catch (e) { console.warn("PageSetup failed", e); }
             }
-
-function safeHtmlForWord(markdownText) {
-    const rawHtml = typeof marked !== "undefined" ? marked.parse(markdownText) : markdownText;
-    if (typeof DOMPurify !== "undefined") {
-        return DOMPurify.sanitize(rawHtml, { ALLOWED_TAGS: ["p","br","strong","em","b","i","u","h1","h2","h3","h4","ul","ol","li","blockquote","hr","table","tr","td","th","thead","tbody"], ALLOWED_ATTR: [], ALLOW_DATA_ATTR: false });
-    }
-    return rawHtml;
-}
 
             // Insert HTML
             const html = safeHtmlForWord(cleanText);
@@ -1053,7 +1071,7 @@ function safeHtmlForWord(markdownText) {
         }).catch(err => {
             console.error("Word.run failed, falling back to basic insert. Error:", err);
             // Fallback
-            Office.context.document.setSelectedDataAsync(marked.parse(cleanText), { coercionType: Office.CoercionType.Html }, (res) => {
+            Office.context.document.setSelectedDataAsync(safeHtmlForWord(cleanText), { coercionType: Office.CoercionType.Html }, (res) => {
                 if (res.status === Office.AsyncResultStatus.Failed) {
                     Office.context.document.setSelectedDataAsync(cleanText, { coercionType: Office.CoercionType.Text });
                 }
@@ -1061,7 +1079,10 @@ function safeHtmlForWord(markdownText) {
         });
     } else if (host === Office.HostType.Excel) {
         const low = text.toLowerCase();
-        if (low.includes("chart") || low.includes("grafik")) runExcelChartGen(text);
+        if (!looksLikeTable(text)) {
+            // Respons percakapan biasa (bukan data tabel/formula) → jangan timpa seleksi.
+            Office.context.document.setSelectedDataAsync(text, { coercionType: Office.CoercionType.Text });
+        } else if (low.includes("chart") || low.includes("grafik")) runExcelChartGen(text);
         else if (low.includes("statistik") || low.includes("mean") || low.includes("median") || low.includes("regresi")) runExcelStatInsert(text);
         else runExcelDataGen(text);
     } else if (host === Office.HostType.PowerPoint) {
@@ -1290,7 +1311,7 @@ window.applyBuiltinTemplate = function(type) {
     if (!content) return;
     Word.run(async (ctx) => {
         ctx.document.body.clear();
-        const html = typeof marked !== "undefined" ? marked.parse(content) : content;
+        const html = safeHtmlForWord(content);
         ctx.document.body.insertHtml(html, Word.InsertLocation.start);
         await ctx.sync();
         showToast("✅ Template diterapkan!");
@@ -1305,7 +1326,8 @@ window.applyBuiltinTemplate = function(type) {
 // ── CITATION ──────────────────────────────────────────────────────────────────
 window.insertCitation = async function(style) {
     if (isProcessing) { showToast("⏳ Tunggu respons selesai dulu"); return; }
-    const input = document.getElementById("citation-input").value.trim();
+    const inputEl = document.getElementById("citation-input");
+    const input = inputEl ? inputEl.value.trim() : "";
     if (!input) { showToast("⚠️ Masukkan info referensi!"); return; }
     showToast("⏳ Memformat sitasi...");
     try {
@@ -1313,6 +1335,6 @@ window.insertCitation = async function(style) {
         if (Office.context.host === Office.HostType.Word) {
             Word.run(async (ctx) => { ctx.document.getSelection().insertText("\n" + result.trim() + "\n", Word.InsertLocation.after); await ctx.sync(); showToast(`✅ Sitasi ${style} disisipkan!`); });
         } else { addBotMessage(`**Sitasi ${style}:**\n\n${result}`); }
-        document.getElementById("citation-input").value = "";
+        if (inputEl) inputEl.value = "";
     } catch (e) { showToast("❌ Error: " + e.message); }
 };
