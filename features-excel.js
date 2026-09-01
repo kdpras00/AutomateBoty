@@ -15,7 +15,9 @@ window.analisisRegresi = async function() {
                 resolve(range.values);
             }).catch(() => resolve([]));
         });
-    } catch {}
+    } catch (err) {
+        console.error("Gagal membaca range Excel (regresi):", err);
+    }
 
     if (!data.length || data[0].length < 2) {
         showToast("⚠️ Pilih minimal 2 kolom data numerik (X dan Y)!");
@@ -39,24 +41,37 @@ window.analisisRegresi = async function() {
         ssYY += (yArr[i] - yMean) ** 2;
     }
 
+    // Guard: pembagian dengan nol jika semua X (atau Y) konstan → b1/r tak terdefinisi
+    if (!isFinite(ssXX) || !isFinite(ssYY) || ssXX === 0 || ssYY === 0) {
+        showToast("⚠️ Data X atau Y konstan, regresi tidak dapat dihitung.");
+        return;
+    }
+
     const b1 = ssXY / ssXX;
     const b0 = yMean - b1 * xMean;
     const r  = ssXY / Math.sqrt(ssXX * ssYY);
     const r2 = r ** 2;
 
+    if (!isFinite(b0) || !isFinite(b1) || !isFinite(r)) {
+        showToast("⚠️ Hasil regresi tidak valid (kalkulasi tidak terdefinisi).");
+        return;
+    }
+
     const stats = { n, b0: b0.toFixed(4), b1: b1.toFixed(4), r: r.toFixed(4), r2: r2.toFixed(4), xMean: xMean.toFixed(3), yMean: yMean.toFixed(3) };
 
     // Insert result table below selection
+    // Sel "Nilai" ditulis sebagai ANGKA (bukan string) agar Excel memformat &
+    // mengiturnya sebagai numeric (desimal mengikuti locale pengguna).
     const resultMatrix = [
         ["Statistik Regresi Linear", "Nilai"],
         ["N (jumlah data)", n],
-        ["Intercept (b₀)", stats.b0],
-        ["Slope/Koefisien (b₁)", stats.b1],
+        ["Intercept (b₀)", Number(stats.b0)],
+        ["Slope/Koefisien (b₁)", Number(stats.b1)],
         ["Persamaan Regresi", `Y = ${stats.b0} + ${stats.b1}X`],
-        ["Korelasi Pearson (r)", stats.r],
-        ["Koefisien Determinasi (R²)", stats.r2],
-        ["Rata-rata X", stats.xMean],
-        ["Rata-rata Y", stats.yMean],
+        ["Korelasi Pearson (r)", Number(stats.r)],
+        ["Koefisien Determinasi (R²)", Number(stats.r2)],
+        ["Rata-rata X", Number(stats.xMean)],
+        ["Rata-rata Y", Number(stats.yMean)],
     ];
 
     await Excel.run(async (ctx) => {
@@ -83,7 +98,9 @@ window.analisisRegresi = async function() {
         const narasi = await callGeminiAPI(narasiPrompt);
         addBotMessage(`## Interpretasi Regresi\n\n${narasi}`);
         saveToHistory("Analisis Regresi", narasi);
-    } catch {}
+    } catch (err) {
+        console.error("Gagal membuat narasi interpretasi regresi:", err);
+    }
 };
 
 // ── INTERPRETASI STATISTIK (NARASI BAB IV) ────────────────────────────────────
@@ -98,7 +115,9 @@ window.interpretasiStatistik = async function() {
                 resolve(range.text.map(r => r.join("\t")).join("\n"));
             }).catch(() => resolve(""));
         });
-    } catch {}
+    } catch (err) {
+        console.error("Gagal membaca range Excel (interpretasi):", err);
+    }
 
     if (!rawData.trim()) { showToast("⚠️ Pilih data statistik yang ingin diinterpretasikan!"); return; }
 

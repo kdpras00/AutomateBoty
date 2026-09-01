@@ -47,7 +47,8 @@ window.loadHistoryItem = function(index) {
     addUserMessage(item.q);
     addBotMessage(item.a);
     document.getElementById("history-panel").classList.add("hidden");
-    document.getElementById("history-btn").classList.remove("active");
+    const historyBtn = document.getElementById("history-btn") || document.getElementById("nav-history");
+    if (historyBtn) historyBtn.classList.remove("active");
 };
 
 window.clearHistory = function() {
@@ -144,7 +145,8 @@ window.copyMessageText = function(btn) {
 
 // ── OFFLINE CACHE ─────────────────────────────────────────────────────────────
 function cacheOffline(key, value) {
-    try { localStorage.setItem("ab_cache_" + key, JSON.stringify({ v: value, ts: Date.now() })); } catch {}
+    try { localStorage.setItem("ab_cache_" + key, JSON.stringify({ v: value, ts: Date.now() })); }
+    catch (err) { console.warn("Gagal menyimpan cache offline:", err); }
 }
 
 function getOfflineCache(key) {

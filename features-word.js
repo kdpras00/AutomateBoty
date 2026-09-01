@@ -21,7 +21,9 @@ window.parafraseTeks = async function(level = "sedang") {
                 resolve(sel.text);
             }).catch(() => resolve(""));
         });
-    } catch {}
+    } catch (err) {
+        console.error("Gagal membaca seleksi Word (parafrase):", err);
+    }
 
     if (!teks.trim()) { showToast("⚠️ Pilih teks terlebih dahulu!"); return; }
 
@@ -67,7 +69,9 @@ window.proofreadingMendalam = async function() {
                 resolve(body.text.substring(0, 4000));
             }).catch(() => resolve(""));
         });
-    } catch {}
+    } catch (err) {
+        console.error("Gagal membaca dokumen Word (proofreading):", err);
+    }
 
     if (!teks.trim()) { showToast("⚠️ Tidak ada teks untuk diperiksa!"); return; }
 
@@ -158,21 +162,26 @@ window.generateOutline = async function() {
 function renderOutline(data) {
     const resultDiv = document.getElementById("outline-result");
     if (!data) return;
+    const esc = (typeof escapeHtml === "function") ? escapeHtml : (t) => String(t).replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[m]));
     const html = data.chapters.map((ch, i) => `
         <div class="outline-chapter">
             <div class="outline-ch-header" onclick="toggleOutlineChapter(${i})">
-                <span>${ch.num}: ${ch.title}</span>
+                <span>${esc(ch.num)}: ${esc(ch.title)}</span>
                 <span class="outline-expand-btn">▼</span>
             </div>
             <div class="outline-sections" id="outline-ch-${i}">
-                ${ch.sections.map(s => `<div class="outline-section">• ${s}</div>`).join("")}
-                <button class="btn-outline" style="margin-top:6px;font-size:10px;" onclick="expandChapter(${i}, '${ch.title.replace(/'/g,"\\'")}')">✍️ Tulis isi bab ini</button>
+                ${(ch.sections || []).map(s => `<div class="outline-section">• ${esc(s)}</div>`).join("")}
+                <button class="btn-outline" style="margin-top:6px;font-size:10px;" onclick="expandChapter(${i}, '${escapeForAttr(ch.title)}')">✍️ Tulis isi bab ini</button>
             </div>
         </div>`).join("");
-    resultDiv.innerHTML = `<div class="outline-title">${data.title}</div>${html}
+    resultDiv.innerHTML = `<div class="outline-title">${esc(data.title)}</div>${html}
         <div style="margin-top:8px;display:flex;gap:6px;">
             <button class="btn-primary" style="font-size:11px;" onclick="insertOutlineToDoc()">📄 Masukkan ke Dokumen</button>
         </div>`;
+}
+
+function escapeForAttr(value) {
+    return String(value).replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, "&quot;");
 }
 
 window.toggleOutlineChapter = function(i) {
@@ -197,7 +206,6 @@ window.expandChapter = async function(i, title) {
 
 window.insertOutlineToDoc = function() {
     if (!outlineData || Office.context.host !== Office.HostType.Word) { showToast("⚠️ Perlu Microsoft Word"); return; }
-    const text = outlineData.chapters.map(ch => `${ch.num}: ${ch.title}\n${ch.sections.map(s => `    ${s}`).join("\n")}`).join("\n\n");
     const html = marked.parse(`# ${outlineData.title}\n\n${outlineData.chapters.map(ch => `## ${ch.num}: ${ch.title}\n${ch.sections.map(s => `- ${s}`).join("\n")}`).join("\n\n")}`);
     Office.context.document.setSelectedDataAsync(html, { coercionType: Office.CoercionType.Html }, () => showToast("✅ Outline dimasukkan ke dokumen!"));
 };

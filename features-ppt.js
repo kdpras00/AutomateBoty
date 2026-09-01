@@ -52,13 +52,16 @@ window.terapkanTemaSlide = async function(themeName) {
                         const tf = shape.textFrame.textRange;
                         tf.font.color = theme.titleColor;
                         tf.font.name  = theme.titleFont;
-                    } catch {}
+                    } catch (err) {
+                        console.warn("Gagal menata shape pada slide:", err);
+                    }
                 }
             }
             await ctx.sync();
             showToast(`✅ Tema "${themeName}" diterapkan ke semua slide!`);
         });
-    } catch (e) {
+    } catch (err) {
+        console.warn("Tema tidak sepenuhnya diterapkan:", err);
         // Fallback: just notify since detailed styling needs premium API
         showToast("⚠️ Beberapa properti tema tidak bisa diterapkan secara program. Coba ubah tema dari PowerPoint → Design.");
         addBotMessage(`**Panduan Terapkan Tema "${themeName}":**\n\n1. Buka **Design** tab di PowerPoint\n2. Pilih tema yang sesuai\n3. Warna yang direkomendasikan:\n   - Judul: \`${theme.titleColor}\`\n   - Font: ${theme.titleFont}\n   - Aksen: \`${theme.accentColor}\`\n\nAtau gunakan **Format Background** untuk mengubah warna latar ke \`${theme.bgColor}\`.`);

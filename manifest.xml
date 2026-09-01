@@ -8,7 +8,7 @@
 
   <!-- Basic Settings: ID, Version, Provider Name -->
   <Id>b749365e-26c7-4340-9856-787071e65842</Id>
-  <Version>1.0.0.0</Version>
+  <Version>7.0.0.0</Version>
   <ProviderName>GeminiAI</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Gemini AI Assistant" />
@@ -44,7 +44,6 @@
           <Description xsi:type="bt:LongString" DefaultValue="Start automating your documents." />
           <LearnMoreUrl DefaultValue="https://go.microsoft.com/fwlink/?LinkId=276812" />
         </GetStarted>
-        <FunctionFile Resid="Commands.Url" />
         <ExtensionPoint xsi:type="PrimaryCommandSurface">
           <OfficeTab id="TabHome">
             <Group id="GeminiGroup">
@@ -152,7 +151,6 @@
         <bt:Image id="Icon.80x80" DefaultValue="https://automateboty.netlify.app/assets/icon-80.png" />
       </bt:Images>
       <bt:Urls>
-        <bt:Url id="Commands.Url" DefaultValue="https://automateboty.netlify.app/commands.html" />
         <bt:Url id="Taskpane.Url" DefaultValue="https://automateboty.netlify.app/index.html" />
       </bt:Urls>
       <bt:ShortStrings>
