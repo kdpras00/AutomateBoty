@@ -73,6 +73,7 @@ export default [
         tourNext: "readonly",
         tourPrev: "readonly",
         closeTour: "readonly",
+        startOnboarding: "readonly",
       },
     },
     rules: {

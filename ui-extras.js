@@ -213,3 +213,4 @@ window.getOfflineCache  = getOfflineCache;
 window.cacheOffline     = cacheOffline;
 window.addRatingButtons = addRatingButtons;
 window.setupExtraPanels = setupExtraPanels;
+window.startOnboarding  = startOnboarding;

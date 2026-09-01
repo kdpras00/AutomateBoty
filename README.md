@@ -10,7 +10,7 @@
 
 ### Chat AI Terpadu (Word/Excel/PPT)
 - 💬 Konsultasi AI dengan **konteks dokumen aktif** otomatis
-- 📎 **Upload file**: gambar, `.docx`, `.pdf`, `.txt/.csv/.md/.json/.js/.py`
+- 📎 **Upload file**: gambar, `.docx`, `.pdf`, `.pptx/.ppt`, `.txt/.csv/.md/.json/.js/.py`
 - 📂 **Upload folder**: baca banyak bab skripsi + **deteksi BAB otomatis** + saran lanjut BAB
 - 🛡️ **Mode offline** (fallback cache), retry/backoff untuk 429/503, mode bahasa ID/EN
 
@@ -133,7 +133,7 @@ Deploy folder `backend/` sebagai service Node standalone, lalu set env:
 
 ```bash
 npm run lint   # 0 error, 0 warning
-npm test       # 9 tes lulus
+npm test       # 38 tes lulus
 ```
 
 ---
