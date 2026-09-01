@@ -1,0 +1,30 @@
+{
+  "name": "automateboty",
+  "version": "7.0.0",
+  "description": "Microsoft Office Add-in (Word/Excel/PowerPoint) dengan asisten AI Google Gemini untuk penulisan akademik dan otomatisasi dokumen, dilengkapi backend proxy aman untuk API key.",
+  "private": true,
+  "license": "UNLICENSED",
+  "main": "build.js",
+  "scripts": {
+    "build": "node build.js",
+    "build:watch": "node --watch build.js",
+    "start:backend": "node backend/server.js",
+    "dev:backend": "nodemon backend/server.js",
+    "test": "node --test 'tests/**/*.test.js' 'backend/tests/**/*.test.js'",
+    "test:backend": "node --test 'backend/tests/**/*.test.js'",
+    "lint": "eslint . --ext .js",
+    "lint:fix": "eslint . --ext .js --fix",
+    "format": "prettier --write \"**/*.{js,html,json,css,md,xml,toml}\"",
+    "check": "npm run lint && npm test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.9.0",
+    "eslint": "^9.9.0",
+    "globals": "^15.9.0",
+    "nodemon": "^3.1.12",
+    "prettier": "^3.3.3"
+  }
+}

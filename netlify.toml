@@ -1,0 +1,17 @@
+# ── AutomateBoty — Netlify Configuration ───────────────────────────────────────
+# Menyajikan add-in statis (index.html, script.js, dll).
+
+[build]
+  command = "npm run build && node build/inject-backend.js"
+  publish = "."
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# Header keamanan dasar (mencegah MIME sniffing & melindungi konten)
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
